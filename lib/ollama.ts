@@ -44,13 +44,17 @@ export async function askLLM(prompt: string) {
 
 /**
  * Generates a single open-ended follow-up question for the user's current root.
+ * (Now filtering out superseded answers)
  */
 export async function generateNextQuestion(userId: string, currentRoot: string) {
   try {
+    // Changed: eq("superseded", false)
     const { data: responses, error: fetchError } = await supabase
       .from("responses")
       .select("question_id, answer")
-      .eq("user_id", userId);
+      .eq("user_id", userId)
+      .eq("superseded", false)
+      .order("created_at", { ascending: true });
 
     if (fetchError) throw fetchError;
 
@@ -58,7 +62,7 @@ export async function generateNextQuestion(userId: string, currentRoot: string) 
       .map((r, idx) => `Statement ${idx + 1}: ${r.answer}`)
       .join("\n");
 
-    // Define complexity based on total answers
+    // Define complexity based on total *active* answers
     const numResponses = responses.length;
     let complexityLevel = "basic";
     if (numResponses >= 2) complexityLevel = "intermediate";
@@ -88,14 +92,16 @@ Keep it short, direct, and open-ended (one sentence). Nothing else.
 /**
  * Checks if the user's new statement contradicts any prior statements.
  * We instruct the LLM to return "YES" (plus explanation) or "NO" on the last line.
+ * (Now filtering out superseded answers)
  */
 export async function checkForContradictions(userId: string, newAnswer: string) {
   try {
-    // 1) Fetch all user responses
+    // eq("superseded", false)
     const { data: allResponses, error: fetchErr } = await supabase
       .from("responses")
       .select("answer")
       .eq("user_id", userId)
+      .eq("superseded", false)
       .order("created_at", { ascending: true });
 
     if (fetchErr) {
@@ -108,8 +114,6 @@ export async function checkForContradictions(userId: string, newAnswer: string) 
       .map((resp, i) => `(${i + 1}) ${resp.answer}`)
       .join("\n");
 
-    // 2) Prompt that MUST end with "YES" or "NO" on its final line
-    // If "YES", it can also include a short explanation in the same line.
     const prompt = `
 SYSTEM:
 You are a contradiction-checking assistant. 
@@ -129,7 +133,6 @@ INSTRUCTION:
     const response = await askLLM(prompt);
     if (!response) return { found: false };
 
-    // 3) We'll parse the last line for "YES" or "NO"
     const lines = response.split("\n").map((l: string) => l.trim()).filter(Boolean);
     const lastLine = lines[lines.length - 1].toUpperCase();
 
@@ -142,13 +145,13 @@ INSTRUCTION:
     }
   } catch (err) {
     console.error("🚨 Error in checkForContradictions:", err);
-    // Fallback: no contradiction
     return { found: false };
   }
 }
 
 /**
  * Once a contradiction is flagged, we generate a resolution question to the user.
+ * (Also filters out superseded answers)
  */
 export async function resolveContradictions(userId: string) {
   try {
@@ -169,6 +172,7 @@ export async function resolveContradictions(userId: string) {
       .from("responses")
       .select("answer")
       .eq("user_id", userId)
+      .eq("superseded", false) // only active answers
       .order("created_at", { ascending: true });
 
     const statementsList = (allResponses ?? [])
@@ -197,22 +201,22 @@ One open-ended question, no extra commentary.
 
 /**
  * Check the user's resolution text to see if it resolves the contradiction.
- * Return true if the final line includes "RESOLVED", false otherwise.
+ * (Filtering out superseded answers as well.)
  */
 export async function checkResolution(userId: string, resolutionText: string): Promise<boolean> {
   try {
-    // 1) Gather all prior statements for context
+    // eq("superseded", false)
     const { data: allResponses } = await supabase
       .from("responses")
       .select("answer")
       .eq("user_id", userId)
+      .eq("superseded", false)
       .order("created_at", { ascending: true });
 
     const statementsList = (allResponses ?? [])
       .map((resp, i) => `(${i + 1}) ${resp.answer}`)
       .join("\n");
 
-    // 2) LLM Prompt
     const prompt = `
 SYSTEM:
 The user had a contradiction among these statements:
@@ -230,7 +234,6 @@ TASK:
     const response = await askLLM(prompt);
     if (!response) return false;
 
-    // 3) Check the last line for "RESOLVED"
     const lines = response.split("\n").map((l: string) => l.trim()).filter(Boolean);
     const lastLine = lines[lines.length - 1].toUpperCase();
 
