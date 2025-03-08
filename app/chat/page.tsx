@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { v4 as uuidv4 } from "uuid"; // Import UUID generator
 import QuestionCard from "@/components/QuestionCard";
 import ChatBox from "@/components/ChatBox";
 
@@ -12,8 +13,7 @@ import ChatBox from "@/components/ChatBox";
  * - Handling contradictions and resolutions
  */
 export default function ChatPage() {
-  const userId = "test-user-123"; // TODO: Replace with real user ID logic
-
+  const [userId, setUserId] = useState<string | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<string>("");
   const [currentResponseId, setCurrentResponseId] = useState<string | null>(null);
   const [answer, setAnswer] = useState<string>("");
@@ -25,11 +25,25 @@ export default function ChatPage() {
   const [resolutionText, setResolutionText] = useState<string>("");
 
   useEffect(() => {
-    initUserProgress().then(fetchNextQuestion).catch(console.error);
+    let storedUserId = localStorage.getItem("user_id");
+
+    if (!storedUserId) {
+      storedUserId = uuidv4(); // Generate a new UUID
+      localStorage.setItem("user_id", storedUserId);
+    }
+
+    setUserId(storedUserId);
   }, []);
+
+  useEffect(() => {
+    if (userId) {
+      initUserProgress().then(fetchNextQuestion).catch(console.error);
+    }
+  }, [userId]);
 
   /** Step 1: Fetch or initialize user progress */
   async function initUserProgress() {
+    if (!userId) return;
     try {
       const res = await fetch(`/api/progress?userId=${userId}`);
       const data = await res.json();
@@ -41,6 +55,7 @@ export default function ChatPage() {
 
   /** Step 2: Fetch the next question */
   async function fetchNextQuestion() {
+    if (!userId) return;
     try {
       setLoading(true);
       const res = await fetch("/api/questions", {
@@ -64,7 +79,7 @@ export default function ChatPage() {
 
   /** Step 3: Submit user answer & check for contradictions */
   async function handleAnswerSubmit() {
-    if (!currentResponseId || !answer.trim()) {
+    if (!userId || !currentResponseId || !answer.trim()) {
       setError("Invalid response or missing answer.");
       return;
     }
@@ -94,7 +109,7 @@ export default function ChatPage() {
 
   /** Step 4: Handle contradiction resolution */
   async function handleContradictionResolution() {
-    if (!resolutionText.trim()) return;
+    if (!userId || !resolutionText.trim()) return;
     try {
       setLoading(true);
       const res = await fetch("/api/contradictions/check-resolution", {
@@ -119,6 +134,7 @@ export default function ChatPage() {
 
   /** (Optional) Load full conversation history */
   async function loadConversationHistory() {
+    if (!userId) return;
     try {
       const res = await fetch(`/api/responses?userId=${userId}`);
       const data = await res.json();
@@ -131,6 +147,8 @@ export default function ChatPage() {
       setError(err.message);
     }
   }
+
+  if (!userId) return <p>Loading user...</p>;
 
   return (
     <div className="p-6">
@@ -148,7 +166,6 @@ export default function ChatPage() {
 
       <hr className="my-4" />
 
-      {/* Contradiction Resolution UI */}
       {resolving ? (
         <div className="p-4 bg-red-100 border border-red-400 rounded-lg">
           <h2 className="text-lg font-semibold text-red-700">Contradiction Detected</h2>
@@ -170,7 +187,6 @@ export default function ChatPage() {
         </div>
       ) : (
         <div>
-          {/* Integrated QuestionCard */}
           <QuestionCard question={currentQuestion} loading={loading} error={error || ""} />
 
           <textarea
@@ -192,8 +208,6 @@ export default function ChatPage() {
       )}
 
       <hr className="my-4" />
-
-      {/* Integrated ChatBox */}
       <ChatBox history={history} />
     </div>
   );

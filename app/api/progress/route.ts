@@ -1,24 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getProgress,
-  initProgress,
-  updateProgress,
-} from "@/lib/db";
+import { getProgress, initProgress, updateProgress } from "@/lib/db";
+import { isValidUUID } from "@/lib/utils"; // Import UUID validation
 
-/**
- * GET /api/progress?userId=xxx
- * Returns the user's progress (stage_number, status, etc.).
- */
 export async function GET(request: NextRequest) {
   const userId = request.nextUrl.searchParams.get("userId");
-  if (!userId) {
-    return NextResponse.json({ error: "Missing userId" }, { status: 400 });
+
+  if (!userId || !isValidUUID(userId)) {
+    return NextResponse.json({ error: "Invalid or missing userId" }, { status: 400 });
   }
 
   try {
     const progress = await getProgress(userId);
     if (!progress) {
-      // Auto-init if it doesn't exist
       const newProgress = await initProgress(userId);
       return NextResponse.json({ progress: newProgress });
     }
