@@ -1,155 +1,200 @@
 "use client";
-import { useEffect, useState } from "react";
+
+import React, { useState, useEffect } from "react";
 import QuestionCard from "@/components/QuestionCard";
+import ChatBox from "@/components/ChatBox";
 
+/**
+ * This is the main chat interface that communicates with the back-end API.
+ * It manages:
+ * - Fetching and storing user progress
+ * - Asking and answering questions
+ * - Handling contradictions and resolutions
+ */
 export default function ChatPage() {
-  const [userId, setUserId] = useState<string | null>(null);
-  const [question, setQuestion] = useState<{ id: string; text: string } | null>(null);
-  const [loading, setLoading] = useState(true);
+  const userId = "test-user-123"; // TODO: Replace with real user ID logic
+
+  const [currentQuestion, setCurrentQuestion] = useState<string>("");
+  const [currentResponseId, setCurrentResponseId] = useState<string | null>(null);
+  const [answer, setAnswer] = useState<string>("");
+  const [history, setHistory] = useState<Array<{ question: string; answer: string }>>([]);
   const [error, setError] = useState<string | null>(null);
-  const [currentRoot, setCurrentRoot] = useState<string | null>(null);
-  const [responsesCount, setResponsesCount] = useState<number>(0);
-  const [contradictionsExist, setContradictionsExist] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [contradiction, setContradiction] = useState<string | null>(null);
+  const [resolving, setResolving] = useState<boolean>(false);
+  const [resolutionText, setResolutionText] = useState<string>("");
 
-  /** ✅ Start a new session */
-  async function startSession() {
+  useEffect(() => {
+    initUserProgress().then(fetchNextQuestion).catch(console.error);
+  }, []);
+
+  /** Step 1: Fetch or initialize user progress */
+  async function initUserProgress() {
     try {
-      setLoading(true);
-      const res = await fetch("/api/start-session", { method: "POST" });
-      if (!res.ok) throw new Error("Failed to start session");
-
+      const res = await fetch(`/api/progress?userId=${userId}`);
       const data = await res.json();
-      setUserId(data.userId);
-      localStorage.setItem("userId", data.userId);
-      await fetchNextQuestion(data.userId);
+      if (data.error) throw new Error(data.error);
     } catch (err: any) {
-      console.error("Error starting session:", err.message);
-      setError("Could not start session. Please refresh.");
-    } finally {
-      setLoading(false);
+      setError(err.message);
     }
   }
 
-  /** ✅ Fetch the next question */
-  async function fetchNextQuestion(existingUserId?: string) {
+  /** Step 2: Fetch the next question */
+  async function fetchNextQuestion() {
     try {
       setLoading(true);
-      setError(null);
-
-      const storedUserId = existingUserId || localStorage.getItem("userId");
-      if (!storedUserId) {
-        await startSession();
-        return;
-      }
-
-      setUserId(storedUserId);
-      const res = await fetch(`/api/questions?userId=${storedUserId}`);
-      if (!res.ok) throw new Error("Failed to fetch question");
-
-      const data = await res.json();
-      if (data.message) {
-        // e.g. "All roots explored" or some other info
-        setError(data.message);
-        return;
-      }
-
-      if (data.resolutionQuestion) {
-        setError("A contradiction must be resolved before proceeding.");
-        setQuestion({ id: crypto.randomUUID(), text: data.resolutionQuestion });
-        setContradictionsExist(true);
-        return;
-      }
-
-      if (!data.question) throw new Error("No question received");
-
-      setQuestion({ id: crypto.randomUUID(), text: data.question });
-      setCurrentRoot(data.topic);
-      setResponsesCount(data.responsesCount || 0);
-      setContradictionsExist(false);
-    } catch (err: any) {
-      console.error("Error fetching question:", err.message);
-      setError("Could not load a question. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  /** ✅ Reset the current session data entirely */
-  async function resetSession() {
-    if (!userId) {
-      // If there's no userId, just start a new one
-      startSession();
-      return;
-    }
-    try {
-      setLoading(true);
-      // Call our new endpoint to delete progress/responses
-      const res = await fetch("/api/reset-session", {
+      const res = await fetch("/api/questions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId }),
       });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
 
-      if (!res.ok) throw new Error("Failed to reset session");
-
-      // Clear localStorage
-      localStorage.removeItem("userId");
-
-      // Now start a new session
-      await startSession();
+      setCurrentQuestion(data.question);
+      setCurrentResponseId(data.responseId);
+      setAnswer("");
+      setContradiction(null);
     } catch (err: any) {
-      console.error("Error resetting session:", err.message);
-      setError("Could not reset session. Please refresh.");
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   }
 
-  // Load or create session on mount
-  useEffect(() => {
-    const storedUserId = localStorage.getItem("userId");
-    if (storedUserId) {
-      fetchNextQuestion(storedUserId);
-    } else {
-      startSession();
+  /** Step 3: Submit user answer & check for contradictions */
+  async function handleAnswerSubmit() {
+    if (!currentResponseId || !answer.trim()) {
+      setError("Invalid response or missing answer.");
+      return;
     }
-  }, []);
+    try {
+      setLoading(true);
+      const res = await fetch("/api/responses", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ responseId: currentResponseId, userId, answer }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      if (data.contradiction) {
+        setContradiction(data.details);
+        setResolving(true);
+      } else {
+        setHistory((prev) => [...prev, { question: currentQuestion, answer }]);
+        fetchNextQuestion();
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  /** Step 4: Handle contradiction resolution */
+  async function handleContradictionResolution() {
+    if (!resolutionText.trim()) return;
+    try {
+      setLoading(true);
+      const res = await fetch("/api/contradictions/check-resolution", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, resolutionText }),
+      });
+      const data = await res.json();
+      if (data.resolved) {
+        setContradiction(null);
+        setResolving(false);
+        fetchNextQuestion();
+      } else {
+        setError("Resolution not sufficient. Try refining your answer.");
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  /** (Optional) Load full conversation history */
+  async function loadConversationHistory() {
+    try {
+      const res = await fetch(`/api/responses?userId=${userId}`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      setHistory(
+        data.responses.map((r: any) => ({ question: r.question_text, answer: r.answer || "" }))
+      );
+    } catch (err: any) {
+      setError(err.message);
+    }
+  }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4">
-      <h1 className="text-2xl font-bold mb-4">GoodFaith Questions</h1>
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-4">Good Faith Moral Chat</h1>
+
+      {loading && <p className="text-gray-500">Loading...</p>}
+      {error && <p className="text-red-500">Error: {error}</p>}
 
       <button
-        onClick={resetSession}
-        className="bg-red-500 text-white px-4 py-2 mb-2 rounded"
+        onClick={loadConversationHistory}
+        className="mb-4 bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600"
       >
-        Reset Session
+        Load Conversation History
       </button>
 
-      {loading ? (
-        <p>Loading...</p>
-      ) : error ? (
-        <p className="text-red-500">{error}</p>
+      <hr className="my-4" />
+
+      {/* Contradiction Resolution UI */}
+      {resolving ? (
+        <div className="p-4 bg-red-100 border border-red-400 rounded-lg">
+          <h2 className="text-lg font-semibold text-red-700">Contradiction Detected</h2>
+          <p className="text-gray-800">{contradiction}</p>
+          <textarea
+            value={resolutionText}
+            onChange={(e) => setResolutionText(e.target.value)}
+            placeholder="Explain or refine your response..."
+            rows={3}
+            className="w-full p-2 border rounded mt-2"
+          />
+          <button
+            onClick={handleContradictionResolution}
+            disabled={loading}
+            className="mt-2 bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600"
+          >
+            Submit Resolution
+          </button>
+        </div>
       ) : (
-        <>
-          <div className="mb-4 text-center">
-            <h2 className="text-xl font-semibold">{currentRoot}</h2>
-            <p>Responses given: {responsesCount}</p>
-            {contradictionsExist && (
-              <p className="text-red-500">Contradiction detected! Resolve before proceeding.</p>
-            )}
-          </div>
-          {question && userId && (
-            <QuestionCard 
-              key={question.id}
-              userId={userId}
-              questionId={question.id}
-              questionText={question.text}
-              fetchNextQuestion={fetchNextQuestion}
-            />
-          )}
-        </>
+        <div>
+          {/* Integrated QuestionCard */}
+          <QuestionCard question={currentQuestion} loading={loading} error={error || ""} />
+
+          <textarea
+            value={answer}
+            onChange={(e) => setAnswer(e.target.value)}
+            placeholder="Your answer..."
+            rows={3}
+            className="w-full p-2 border rounded mt-4"
+          />
+
+          <button
+            onClick={handleAnswerSubmit}
+            disabled={loading}
+            className="mt-2 bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600"
+          >
+            Submit Answer
+          </button>
+        </div>
       )}
+
+      <hr className="my-4" />
+
+      {/* Integrated ChatBox */}
+      <ChatBox history={history} />
     </div>
   );
 }

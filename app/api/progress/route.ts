@@ -1,57 +1,56 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/db";
-import { philosophicalRoots } from "@/lib/constants";
+import {
+  getProgress,
+  initProgress,
+  updateProgress,
+} from "@/lib/db";
 
-// ✅ Function to Validate UUID
-function isValidUUID(uuid: string) {
-  return /^[0-9a-fA-F-]{36}$/.test(uuid);
+/**
+ * GET /api/progress?userId=xxx
+ * Returns the user's progress (stage_number, status, etc.).
+ */
+export async function GET(request: NextRequest) {
+  const userId = request.nextUrl.searchParams.get("userId");
+  if (!userId) {
+    return NextResponse.json({ error: "Missing userId" }, { status: 400 });
+  }
+
+  try {
+    const progress = await getProgress(userId);
+    if (!progress) {
+      // Auto-init if it doesn't exist
+      const newProgress = await initProgress(userId);
+      return NextResponse.json({ progress: newProgress });
+    }
+    return NextResponse.json({ progress });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 }
 
-export async function GET(req: NextRequest) {
+/**
+ * PATCH /api/progress
+ * Body: { userId, stage_number?, status?, contradictions?, reset? etc. }
+ * Updates the user's progress row. Could also handle "reset session."
+ */
+export async function PATCH(request: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const userId = searchParams.get("userId");
-
-    if (!userId || !isValidUUID(userId)) {
-      return NextResponse.json({ error: "Invalid or missing user ID" }, { status: 400 });
+    const body = await request.json();
+    const { userId, ...updates } = body;
+    if (!userId) {
+      return NextResponse.json({ error: "Missing userId" }, { status: 400 });
     }
 
-    // ✅ Fetch user's progress
-    const { data: progress, error: progressError } = await supabase
-      .from("progress")
-      .select("root, status, responses_count, contradictions")
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    if (progressError) throw progressError;
-
-    // ✅ Initialize progress if missing
-    if (!progress) {
-      const newRoot = philosophicalRoots[0]; // Start with the first topic
-      const { error: insertError } = await supabase
-        .from("progress")
-        .insert([{
-          user_id: userId,
-          root: newRoot,
-          status: "in_progress",
-          responses_count: 0,
-          contradictions: false, // ✅ Set contradictions to false
-          last_updated: new Date().toISOString()
-        }]);
-
-      if (insertError) throw insertError;
-
-      return NextResponse.json({
-        message: "User progress initialized.",
-        topic: newRoot,
-        responsesCount: 0,
-        contradictions: false
-      }, { status: 200 });
+    // Optional "reset" logic
+    if (updates.reset === true) {
+      // e.g., set stage_number=1, responses_count=0
+      // or remove old responses
+      // custom logic up to you
     }
 
-    return NextResponse.json(progress, { status: 200 });
-  } catch (error) {
-    console.error("Error fetching/updating progress:", error);
-    return NextResponse.json({ error: "Failed to retrieve or initialize progress" }, { status: 500 });
+    const newProgress = await updateProgress(userId, updates);
+    return NextResponse.json({ progress: newProgress });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

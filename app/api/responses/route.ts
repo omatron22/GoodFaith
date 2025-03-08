@@ -1,73 +1,56 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/db";
-import { checkForContradictions } from "@/lib/ollama"; // <-- We'll create this in ollama.ts
+import { getResponses, updateResponse } from "@/lib/db";
+import { checkForContradictions } from "@/lib/ollama";
 
-function isValidUUID(uuid: string) {
-  return /^[0-9a-fA-F-]{36}$/.test(uuid);
+/**
+ * GET /api/responses?userId=xxx&includeSuperseded=(true|false)
+ * Returns the user's entire conversation or only non-superseded entries.
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get("userId");
+    const includeSuperseded = searchParams.get("includeSuperseded") === "true";
+
+    if (!userId) {
+      return NextResponse.json({ error: "Missing userId" }, { status: 400 });
+    }
+
+    const responses = await getResponses(userId, includeSuperseded);
+    return NextResponse.json({ responses });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 }
 
-export async function POST(req: NextRequest) {
+/**
+ * PATCH /api/responses
+ * Body: { responseId: string, userId: string, answer: string }
+ * 1) Updates the row in 'responses' with the user's new answer
+ * 2) Calls checkForContradictions(userId, answer)
+ * 3) Returns whether a contradiction was found
+ */
+export async function PATCH(request: NextRequest) {
   try {
-    const { userId, questionId, answer } = await req.json();
-
-    if (!userId || !questionId || typeof answer !== "string" || answer.trim() === "") {
-      return NextResponse.json({ error: "Missing or invalid fields" }, { status: 400 });
+    const { responseId, userId, answer } = await request.json();
+    if (!responseId || !userId) {
+      return NextResponse.json({ error: "Missing responseId or userId" }, { status: 400 });
     }
 
-    if (!isValidUUID(userId)) {
-      return NextResponse.json({ error: "Invalid user ID format" }, { status: 400 });
+    // 1) Update the DB with the user's answer
+    const updated = await updateResponse(responseId, { answer });
+    if (!updated) {
+      return NextResponse.json({ error: "Response not found" }, { status: 404 });
     }
 
-    // 1) Fetch the user's current progress
-    const { data: progress, error: progressError } = await supabase
-      .from("progress")
-      .select("root, responses_count, contradictions")
-      .eq("user_id", userId)
-      .maybeSingle();
+    // 2) Check for contradictions
+    const { found, details } = await checkForContradictions(userId, answer);
 
-    if (progressError) throw progressError;
-    if (!progress) {
-      return NextResponse.json({ error: "No active progress found for user" }, { status: 400 });
-    }
-
-    // 2) Insert the new response
-    const { error: insertErr } = await supabase.from("responses").insert([
-      { user_id: userId, question_id: questionId, answer: answer.trim() },
-    ]);
-    if (insertErr) throw insertErr;
-
-    // 3) Check for contradictions using the new answer
-    const contradictionResult = await checkForContradictions(userId, answer.trim());
-    if (contradictionResult.found) {
-      // a) set progress.contradictions = true
-      const { error: updateErr } = await supabase
-        .from("progress")
-        .update({ contradictions: true })
-        .eq("user_id", userId);
-
-      if (updateErr) throw updateErr;
-
-      return NextResponse.json(
-        {
-          message: "Response recorded, but contradiction detected!",
-          contradictionDetails: contradictionResult.details,
-        },
-        { status: 200 }
-      );
-    }
-
-    // 4) If no contradiction, increment the response count
-    const newCount = (progress.responses_count || 0) + 1;
-    const { error: countErr } = await supabase
-      .from("progress")
-      .update({ responses_count: newCount })
-      .eq("user_id", userId);
-
-    if (countErr) throw countErr;
-
-    return NextResponse.json({ message: "Response recorded successfully" }, { status: 200 });
-  } catch (error) {
-    console.error("Error handling response:", error);
-    return NextResponse.json({ error: "Failed to handle response" }, { status: 500 });
+    return NextResponse.json({
+      contradiction: found,
+      details: found ? details : null
+    });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

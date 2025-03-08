@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateNextQuestion } from "@/lib/ollama";
+import { generateFinalEvaluation } from "@/lib/ollama";
 
 /**
- * POST /api/questions
+ * POST /api/progress/final
  * Body: { userId: string }
- * Returns { question: string } (the newly generated question text)
+ * Calls generateFinalEvaluation(userId) to produce an end-of-journey moral analysis.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -13,8 +13,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing userId" }, { status: 400 });
     }
 
-    const question = await generateNextQuestion(userId);
-    return NextResponse.json({ question });
+    const summary = await generateFinalEvaluation(userId);
+    return NextResponse.json({ summary });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

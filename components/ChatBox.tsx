@@ -1,71 +1,45 @@
-import { useState } from "react";
+"use client";
 
-export default function ChatBox({ userId, onContradictionResolved }: { userId: string; onContradictionResolved: () => void }) {
-  const [message, setMessage] = useState("");
-  const [chatHistory, setChatHistory] = useState<string[]>([]);
-  const [unresolvedContradiction, setUnresolvedContradiction] = useState<string | null>(null);
+import React, { useEffect, useRef } from "react";
 
-  async function sendMessage() {
-    if (!message.trim()) return;
-  
-    setChatHistory((prev) => [...prev, `You: ${message}`]);
-  
-    // ✅ Use correct API route
-    const contradictionRes = await fetch("/api/resolve-contradictions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId }),
-    });
-  
-    const { contradictionCheck } = await contradictionRes.json();
-  
-    if (contradictionCheck !== "No contradiction detected.") {
-      setUnresolvedContradiction(contradictionCheck);
-      setChatHistory((prev) => [...prev, `System: ${contradictionCheck}`]);
-    } else {
-      setUnresolvedContradiction(null);
-      setChatHistory((prev) => [...prev, `System: No contradiction detected. Proceeding...`]);
-  
-      // Let the parent component know that the contradiction is resolved
-      onContradictionResolved();
-    }
-  
-    setMessage("");
-  }
-  
+interface ChatBoxProps {
+  history: Array<{ question: string; answer: string }>;
+}
+
+/**
+ * Renders the conversation history in a chat-like UI.
+ * Auto-scrolls to the latest message for a smooth experience.
+ */
+const ChatBox: React.FC<ChatBoxProps> = ({ history }) => {
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Auto-scroll to latest message
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [history]);
 
   return (
-    <div className="p-4 border rounded-lg shadow-lg w-full max-w-lg">
-      <div className="h-60 overflow-y-auto border-b mb-4 p-2">
-        {chatHistory.map((msg, idx) => (
-          <p key={idx} className={msg.startsWith("You") ? "text-blue-600" : "text-red-600"}>
-            {msg}
-          </p>
-        ))}
-      </div>
+    <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 shadow-md max-h-96 overflow-y-auto">
+      <h2 className="text-lg font-semibold text-gray-800 mb-2">Conversation History</h2>
 
-      {unresolvedContradiction && (
-        <div className="p-2 bg-red-100 border border-red-500 rounded mt-2">
-          <p className="text-red-700 font-semibold">⚠️ Contradiction Detected:</p>
-          <p>{unresolvedContradiction}</p>
-          <p className="text-sm text-gray-600">Clarify your stance before proceeding.</p>
+      {history.length === 0 ? (
+        <p className="text-gray-500 italic">No conversation history yet.</p>
+      ) : (
+        <div className="space-y-4">
+          {history.map((item, index) => (
+            <div key={index} className="flex flex-col space-y-1">
+              <p className="text-blue-700 font-medium">Q: {item.question}</p>
+              <p className="text-gray-800">A: {item.answer || "No answer yet."}</p>
+              <hr className="border-gray-300 mt-2" />
+            </div>
+          ))}
         </div>
       )}
 
-      <input
-        type="text"
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
-        className="w-full p-2 border mt-2"
-        placeholder="Type your response..."
-      />
-      <button 
-        onClick={sendMessage} 
-        className="mt-2 px-4 py-2 bg-green-500 text-white rounded"
-        disabled={!!unresolvedContradiction} // Disable button if contradiction exists
-      >
-        Send
-      </button>
+      {/* Invisible div to ensure smooth scrolling to the last message */}
+      <div ref={chatEndRef} />
     </div>
   );
-}
+};
+
+export default ChatBox;
