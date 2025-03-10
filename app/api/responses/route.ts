@@ -18,8 +18,11 @@ export async function GET(request: NextRequest) {
 
     const responses = await getResponses(userId, includeSuperseded);
     return NextResponse.json({ responses });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    if (error instanceof Error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ error: "An unknown error occurred" }, { status: 500 });
   }
 }
 
@@ -32,10 +35,13 @@ export async function GET(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
   try {
-    const { responseId, userId, answer } = await request.json();
-    if (!responseId || !userId) {
-      return NextResponse.json({ error: "Missing responseId or userId" }, { status: 400 });
+    const body = await request.json() as { responseId?: string; userId?: string; answer?: string };
+
+    if (!body.responseId || !body.userId || !body.answer) {
+      return NextResponse.json({ error: "Missing responseId, userId, or answer" }, { status: 400 });
     }
+
+    const { responseId, userId, answer } = body;
 
     // 1) Update the DB with the user's answer
     const updated = await updateResponse(responseId, { answer });
@@ -48,9 +54,12 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({
       contradiction: found,
-      details: found ? details : null
+      details: found ? details : null,
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    if (error instanceof Error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ error: "An unknown error occurred" }, { status: 500 });
   }
 }

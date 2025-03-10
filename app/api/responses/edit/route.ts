@@ -9,7 +9,8 @@ import { replaceResponseWithNewVersion } from "@/lib/db";
  */
 export async function POST(request: NextRequest) {
   try {
-    const { responseId, newAnswer } = await request.json();
+    const { responseId, newAnswer }: { responseId?: string; newAnswer?: string } = 
+      await request.json();
 
     if (!responseId || !newAnswer) {
       return NextResponse.json({ error: "Missing responseId or newAnswer" }, { status: 400 });
@@ -18,7 +19,13 @@ export async function POST(request: NextRequest) {
     await replaceResponseWithNewVersion(responseId, newAnswer);
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    let errorMessage = "An unexpected error occurred";
+
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

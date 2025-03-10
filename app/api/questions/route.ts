@@ -8,14 +8,21 @@ import { generateNextQuestion } from "@/lib/ollama";
  */
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await request.json();
+    const { userId }: { userId?: string } = await request.json();
+
     if (!userId) {
       return NextResponse.json({ error: "Missing userId" }, { status: 400 });
     }
 
     const question = await generateNextQuestion(userId);
     return NextResponse.json({ question });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    let errorMessage = "An unexpected error occurred";
+
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

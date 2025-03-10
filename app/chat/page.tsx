@@ -1,17 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { v4 as uuidv4 } from "uuid"; // Import UUID generator
+import React, { useState, useEffect, useCallback } from "react";
+import { supabase } from "@/lib/db";
 import QuestionCard from "@/components/QuestionCard";
 import ChatBox from "@/components/ChatBox";
 
-/**
- * This is the main chat interface that communicates with the back-end API.
- * It manages:
- * - Fetching and storing user progress
- * - Asking and answering questions
- * - Handling contradictions and resolutions
- */
 export default function ChatPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<string>("");
@@ -24,37 +17,31 @@ export default function ChatPage() {
   const [resolving, setResolving] = useState<boolean>(false);
   const [resolutionText, setResolutionText] = useState<string>("");
 
+  // ✅ Fetch the authenticated user's ID from Supabase
   useEffect(() => {
-    let storedUserId = localStorage.getItem("user_id");
-
-    if (!storedUserId) {
-      storedUserId = uuidv4(); // Generate a new UUID
-      localStorage.setItem("user_id", storedUserId);
+    async function fetchUser() {
+      const { data } = await supabase.auth.getUser();
+      if (data?.user) {
+        setUserId(data.user.id);
+      } else {
+        setError("User not authenticated");
+      }
     }
-
-    setUserId(storedUserId);
+    fetchUser();
   }, []);
 
-  useEffect(() => {
-    if (userId) {
-      initUserProgress().then(fetchNextQuestion).catch(console.error);
-    }
-  }, [userId]);
-
-  /** Step 1: Fetch or initialize user progress */
-  async function initUserProgress() {
+  const initUserProgress = useCallback(async () => {
     if (!userId) return;
     try {
       const res = await fetch(`/api/progress?userId=${userId}`);
-      const data = await res.json();
+      const data: { error?: string } = await res.json();
       if (data.error) throw new Error(data.error);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError((err as Error).message);
     }
-  }
+  }, [userId]);
 
-  /** Step 2: Fetch the next question */
-  async function fetchNextQuestion() {
+  const fetchNextQuestion = useCallback(async () => {
     if (!userId) return;
     try {
       setLoading(true);
@@ -63,21 +50,26 @@ export default function ChatPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId }),
       });
-      const data = await res.json();
+      const data: { question?: string; responseId?: string; error?: string } = await res.json();
       if (data.error) throw new Error(data.error);
 
-      setCurrentQuestion(data.question);
-      setCurrentResponseId(data.responseId);
+      setCurrentQuestion(data.question || "");
+      setCurrentResponseId(data.responseId || null);
       setAnswer("");
       setContradiction(null);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError((err as Error).message);
     } finally {
       setLoading(false);
     }
-  }
+  }, [userId]);
 
-  /** Step 3: Submit user answer & check for contradictions */
+  useEffect(() => {
+    if (userId) {
+      initUserProgress().then(fetchNextQuestion).catch(console.error);
+    }
+  }, [userId, initUserProgress, fetchNextQuestion]);
+
   async function handleAnswerSubmit() {
     if (!userId || !currentResponseId || !answer.trim()) {
       setError("Invalid response or missing answer.");
@@ -90,24 +82,23 @@ export default function ChatPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ responseId: currentResponseId, userId, answer }),
       });
-      const data = await res.json();
+      const data: { contradiction?: boolean; details?: string; error?: string } = await res.json();
       if (data.error) throw new Error(data.error);
 
       if (data.contradiction) {
-        setContradiction(data.details);
+        setContradiction(data.details || "Contradiction detected.");
         setResolving(true);
       } else {
         setHistory((prev) => [...prev, { question: currentQuestion, answer }]);
         fetchNextQuestion();
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError((err as Error).message);
     } finally {
       setLoading(false);
     }
   }
 
-  /** Step 4: Handle contradiction resolution */
   async function handleContradictionResolution() {
     if (!userId || !resolutionText.trim()) return;
     try {
@@ -117,7 +108,9 @@ export default function ChatPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, resolutionText }),
       });
-      const data = await res.json();
+      const data: { resolved?: boolean; error?: string } = await res.json();
+      if (data.error) throw new Error(data.error);
+
       if (data.resolved) {
         setContradiction(null);
         setResolving(false);
@@ -125,26 +118,25 @@ export default function ChatPage() {
       } else {
         setError("Resolution not sufficient. Try refining your answer.");
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError((err as Error).message);
     } finally {
       setLoading(false);
     }
   }
 
-  /** (Optional) Load full conversation history */
   async function loadConversationHistory() {
     if (!userId) return;
     try {
       const res = await fetch(`/api/responses?userId=${userId}`);
-      const data = await res.json();
+      const data: { responses?: Array<{ question_text: string; answer: string }>; error?: string } = await res.json();
       if (data.error) throw new Error(data.error);
 
       setHistory(
-        data.responses.map((r: any) => ({ question: r.question_text, answer: r.answer || "" }))
+        data.responses?.map((r) => ({ question: r.question_text, answer: r.answer || "" })) || []
       );
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError((err as Error).message);
     }
   }
 
@@ -188,7 +180,6 @@ export default function ChatPage() {
       ) : (
         <div>
           <QuestionCard question={currentQuestion} loading={loading} error={error || ""} />
-
           <textarea
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
@@ -196,12 +187,7 @@ export default function ChatPage() {
             rows={3}
             className="w-full p-2 border rounded mt-4"
           />
-
-          <button
-            onClick={handleAnswerSubmit}
-            disabled={loading}
-            className="mt-2 bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600"
-          >
+          <button onClick={handleAnswerSubmit} className="mt-2 bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600">
             Submit Answer
           </button>
         </div>

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link"; // ✅ Import Link from Next.js
 import { Geist, Geist_Mono } from "next/font/google";
 import "../styles/global.css";
 
@@ -35,7 +36,9 @@ export default function RootLayout({
       >
         {/* Header */}
         <header className="w-full py-4 bg-white shadow-md text-center text-lg font-semibold fixed top-0 z-50">
-          <a href="/" className="hover:text-green-500 transition">GoodFaith</a>
+          <Link href="/" className="hover:text-green-500 transition">
+            GoodFaith
+          </Link>
         </header>
 
         {/* Main Content */}

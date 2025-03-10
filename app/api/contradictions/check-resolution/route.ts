@@ -15,7 +15,14 @@ export async function POST(request: NextRequest) {
 
     const isResolved = await checkResolution(userId, resolutionText);
     return NextResponse.json({ resolved: isResolved });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    let errorMessage = "An unexpected error occurred";
+    
+    // Check if error is an instance of Error before accessing error.message
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

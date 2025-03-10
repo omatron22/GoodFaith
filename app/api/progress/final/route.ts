@@ -15,7 +15,13 @@ export async function POST(request: NextRequest) {
 
     const summary = await generateFinalEvaluation(userId);
     return NextResponse.json({ summary });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    let errorMessage = "An unexpected error occurred";
+
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

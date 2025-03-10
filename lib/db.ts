@@ -11,30 +11,38 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     PROGRESS TABLE HELPERS
    ------------------------------------------------------------------ */
 
+interface Progress {
+  user_id: string;
+  stage_number?: number;
+  status?: string;
+  responses_count?: number;
+  contradictions?: boolean;
+  last_updated?: string;
+}
+
 /**
  * Fetch a user's progress row by user_id.
  * Returns null if not found.
  */
-export async function getProgress(userId: string) {
+export async function getProgress(userId: string): Promise<Progress | null> {
   const { data, error } = await supabase
     .from("progress")
     .select("*")
     .eq("user_id", userId)
     .single();
 
-  // If there's an error but it's not a "row not found" code, throw
   if (error && error.code !== "PGRST116") {
     console.error("Error fetching progress:", error);
     throw error;
   }
 
-  return data; // could be null if no row found
+  return data ?? null;
 }
 
 /**
  * Initialize a progress row for a user (if it doesn't exist).
  */
-export async function initProgress(userId: string) {
+export async function initProgress(userId: string): Promise<Progress> {
   const existing = await getProgress(userId);
   if (existing) {
     return existing;
@@ -42,7 +50,7 @@ export async function initProgress(userId: string) {
 
   const { data, error } = await supabase
     .from("progress")
-    .insert([{ user_id: userId }]) // let defaults handle stage_number, etc.
+    .insert([{ user_id: userId }])
     .single();
 
   if (error) {
@@ -50,22 +58,16 @@ export async function initProgress(userId: string) {
     throw error;
   }
 
-  return data;
+  return data!;
 }
 
 /**
  * Update an existing progress row.
- * Automatically sets 'last_updated' to current timestamp.
  */
 export async function updateProgress(
   userId: string,
-  updates: Partial<{
-    stage_number: number;
-    status: string;
-    responses_count: number;
-    contradictions: boolean;
-  }>
-) {
+  updates: Partial<Omit<Progress, "user_id">>
+): Promise<Progress> {
   const { data, error } = await supabase
     .from("progress")
     .update({
@@ -80,13 +82,13 @@ export async function updateProgress(
     throw error;
   }
 
-  return data;
+  return data!;
 }
 
 /**
  * Increment the 'responses_count' field, useful after adding a new response.
  */
-export async function incrementResponseCount(userId: string) {
+export async function incrementResponseCount(userId: string): Promise<Progress> {
   const progress = await getProgress(userId);
   if (!progress) {
     await initProgress(userId);
@@ -100,50 +102,22 @@ export async function incrementResponseCount(userId: string) {
     RESPONSES TABLE HELPERS
    ------------------------------------------------------------------ */
 
-/**
- * Saves a user's response to the "responses" table.
- * - questionText: the final question text shown to the user
- * - answer: the user's typed answer (can be empty if not answered yet)
- * - stageNumber, version, superseded, contradictionFlag all optional
- *
- * Example usage:
- * await saveResponse({
- *   userId: "abc123",
- *   questionText: "Adapted question for stage 2",
- *   answer: "Some answer or empty",
- *   stageNumber: 2,
- * });
- */
-export async function saveResponse({
-  userId,
-  questionText,
-  answer,
-  stageNumber = 1,
-  version = 1,
-  superseded = false,
-  contradictionFlag = false,
-}: {
-  userId: string;
-  questionText: string;
+interface ResponseEntry {
+  id?: string;
+  user_id: string;
+  question_text: string;
   answer?: string;
-  stageNumber?: number;
+  stage_number?: number;
   version?: number;
   superseded?: boolean;
-  contradictionFlag?: boolean;
-}) {
-  const insertObj: any = {
-    user_id: userId,
-    question_text: questionText,
-    stage_number: stageNumber,
-    version,
-    superseded,
-    contradiction_flag: contradictionFlag,
-  };
+  contradiction_flag?: boolean;
+}
 
-  // Only set answer if provided (otherwise it stays null)
-  if (answer !== undefined) {
-    insertObj.answer = answer;
-  }
+/**
+ * Saves a user's response to the "responses" table.
+ */
+export async function saveResponse(responseData: ResponseEntry): Promise<ResponseEntry[]> {
+  const insertObj: Record<string, unknown> = { ...responseData };
 
   const { data, error } = await supabase
     .from("responses")
@@ -154,15 +128,14 @@ export async function saveResponse({
     throw error;
   }
 
-  // Optionally increment the user's response count
-  await incrementResponseCount(userId);
-  return data;
+  await incrementResponseCount(responseData.user_id);
+  return data!;
 }
 
 /**
  * Fetch all responses (non-superseded by default) for a user.
  */
-export async function getResponses(userId: string, includeSuperseded = false) {
+export async function getResponses(userId: string, includeSuperseded = false): Promise<ResponseEntry[]> {
   const query = supabase
     .from("responses")
     .select("*")
@@ -179,13 +152,13 @@ export async function getResponses(userId: string, includeSuperseded = false) {
     throw error;
   }
 
-  return data;
+  return data!;
 }
 
 /**
  * Fetch a single response by its primary key (id).
  */
-export async function getResponseById(id: string) {
+export async function getResponseById(id: string): Promise<ResponseEntry | null> {
   const { data, error } = await supabase
     .from("responses")
     .select("*")
@@ -197,23 +170,16 @@ export async function getResponseById(id: string) {
     throw error;
   }
 
-  return data;
+  return data ?? null;
 }
 
 /**
- * Update a response row (e.g., set 'answer', superseded, contradiction_flag, etc.).
+ * Update a response row.
  */
 export async function updateResponse(
   responseId: string,
-  updates: Partial<{
-    question_text: string;
-    answer: string;
-    stage_number: number;
-    version: number;
-    superseded: boolean;
-    contradiction_flag: boolean;
-  }>
-) {
+  updates: Partial<Omit<ResponseEntry, "id" | "user_id">>
+): Promise<ResponseEntry> {
   const { data, error } = await supabase
     .from("responses")
     .update(updates)
@@ -225,43 +191,36 @@ export async function updateResponse(
     throw error;
   }
 
-  return data;
+  return data!;
 }
 
 /**
  * Mark/unmark a specific response as contradictory.
  */
-export async function markContradiction(responseId: string, isContradictory = true) {
+export async function markContradiction(responseId: string, isContradictory = true): Promise<ResponseEntry> {
   return updateResponse(responseId, { contradiction_flag: isContradictory });
 }
 
 /**
  * Replace an old contradictory response with a new version.
- * 1) Mark the old one as superseded
- * 2) Insert a new row with version=old.version+1, new answer, etc.
  */
-export async function replaceResponseWithNewVersion(responseId: string, newAnswer: string) {
-  // 1) Fetch existing row
+export async function replaceResponseWithNewVersion(responseId: string, newAnswer: string): Promise<void> {
   const existing = await getResponseById(responseId);
   if (!existing) {
     throw new Error("Response not found for ID: " + responseId);
   }
 
-  // 2) Mark old row as superseded
   await updateResponse(responseId, { superseded: true });
 
-  // 3) Insert new row with incremented version
   const newVersion = (existing.version || 1) + 1;
-
-  const { user_id, question_text, stage_number } = existing;
 
   await supabase
     .from("responses")
     .insert([
       {
-        user_id,
-        question_text,
-        stage_number,
+        user_id: existing.user_id,
+        question_text: existing.question_text,
+        stage_number: existing.stage_number,
         answer: newAnswer,
         version: newVersion,
         superseded: false,
