@@ -4,8 +4,8 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/db";
-import QuestionCard from "@/components/QuestionCard";
-import ChatBox from "@/components/ChatBox";
+import QuestionCard from "@/components/chat/question-card";
+import ChatBox from "@/components/chat/chatbox";
 import { kohlbergStages } from "@/lib/constants";
 
 export default function ChatPage() {
