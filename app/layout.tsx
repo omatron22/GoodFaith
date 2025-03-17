@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
+import Link from "next/link";
+import AuthHeader from "@/components/layout/auth-header";
 import "../styles/global.css";
 
 const geistSans = Geist({
@@ -34,41 +35,8 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 text-gray-900 flex flex-col min-h-screen`}
       >
-        {/* Header */}
-        <header className="w-full py-4 bg-white shadow-md fixed top-0 z-50">
-          <div className="container mx-auto px-4 flex justify-between items-center">
-            <Link href="/" className="text-xl font-semibold hover:text-green-500 transition">
-              <span className="text-green-500">Good</span>Faith
-            </Link>
-            
-            <nav className="hidden sm:flex space-x-6">
-              <Link href="/dashboard" className="text-gray-700 hover:text-green-600 transition">
-                Dashboard
-              </Link>
-              <Link href="/chat" className="text-gray-700 hover:text-green-600 transition">
-                Explore
-              </Link>
-              <Link href="/resources" className="text-gray-700 hover:text-green-600 transition">
-                Resources
-              </Link>
-            </nav>
-            
-            <div className="flex items-center space-x-4">
-              <Link 
-                href="/login" 
-                className="text-sm text-gray-700 hover:text-green-600 transition"
-              >
-                Sign In
-              </Link>
-              <Link 
-                href="/signup" 
-                className="text-sm px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition"
-              >
-                Sign Up
-              </Link>
-            </div>
-          </div>
-        </header>
+        {/* Authentication-aware Header */}
+        <AuthHeader />
 
         {/* Main Content */}
         <main className="flex-1 mt-16 pt-4">
