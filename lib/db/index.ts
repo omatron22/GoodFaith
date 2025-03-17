@@ -1,30 +1,53 @@
-// db.ts
+// lib/db.ts
 import { createClient } from "@supabase/supabase-js";
+import { isValidUUID } from "./utils";
 
 // Load environment variables
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
+// Define database types
+export interface Progress {
+  id?: string;
+  user_id: string;
+  stage_number: number;
+  status: 'active' | 'paused' | 'completed';
+  responses_count: number;
+  contradictions: boolean;
+  last_updated: string;
+  completed_stages?: number[];
+  current_question_id?: string | null;
+}
+
+export interface ResponseEntry {
+  id?: string;
+  user_id: string;
+  question_text: string;
+  answer?: string;
+  stage_number?: number;
+  version: number;
+  superseded: boolean;
+  contradiction_flag: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// Create Supabase client
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 /* ------------------------------------------------------------------
     PROGRESS TABLE HELPERS
    ------------------------------------------------------------------ */
 
-interface Progress {
-  user_id: string;
-  stage_number?: number;
-  status?: string;
-  responses_count?: number;
-  contradictions?: boolean;
-  last_updated?: string;
-}
-
 /**
  * Fetch a user's progress row by user_id.
  * Returns null if not found.
  */
 export async function getProgress(userId: string): Promise<Progress | null> {
+  if (!isValidUUID(userId)) {
+    throw new Error("Invalid user ID format");
+  }
+
   const { data, error } = await supabase
     .from("progress")
     .select("*")
@@ -43,14 +66,28 @@ export async function getProgress(userId: string): Promise<Progress | null> {
  * Initialize a progress row for a user (if it doesn't exist).
  */
 export async function initProgress(userId: string): Promise<Progress> {
+  if (!isValidUUID(userId)) {
+    throw new Error("Invalid user ID format");
+  }
+
   const existing = await getProgress(userId);
   if (existing) {
     return existing;
   }
 
+  const newProgress: Partial<Progress> = {
+    user_id: userId,
+    stage_number: 1,
+    status: 'active',
+    responses_count: 0,
+    contradictions: false,
+    completed_stages: []
+  };
+
   const { data, error } = await supabase
     .from("progress")
-    .insert([{ user_id: userId }])
+    .insert([newProgress])
+    .select()
     .single();
 
   if (error) {
@@ -68,6 +105,10 @@ export async function updateProgress(
   userId: string,
   updates: Partial<Omit<Progress, "user_id">>
 ): Promise<Progress> {
+  if (!isValidUUID(userId)) {
+    throw new Error("Invalid user ID format");
+  }
+
   const { data, error } = await supabase
     .from("progress")
     .update({
@@ -75,6 +116,7 @@ export async function updateProgress(
       last_updated: new Date().toISOString(),
     })
     .eq("user_id", userId)
+    .select()
     .single();
 
   if (error) {
@@ -91,37 +133,67 @@ export async function updateProgress(
 export async function incrementResponseCount(userId: string): Promise<Progress> {
   const progress = await getProgress(userId);
   if (!progress) {
-    await initProgress(userId);
+    return await initProgress(userId);
   }
 
-  const currentCount = progress?.responses_count ?? 0;
+  const currentCount = progress.responses_count ?? 0;
   return updateProgress(userId, { responses_count: currentCount + 1 });
+}
+
+/**
+ * Mark a stage as completed and update the user's current stage.
+ */
+export async function completeStage(userId: string, stageNumber: number): Promise<Progress> {
+  const progress = await getProgress(userId);
+  if (!progress) {
+    throw new Error("User progress not found");
+  }
+  
+  const completedStages = [...(progress.completed_stages || [])];
+  if (!completedStages.includes(stageNumber)) {
+    completedStages.push(stageNumber);
+  }
+  
+  // Move to next stage if current stage was completed
+  let nextStage = progress.stage_number;
+  if (progress.stage_number === stageNumber) {
+    nextStage = Math.min(stageNumber + 1, 6); // Kohlberg has 6 stages
+  }
+  
+  return updateProgress(userId, { 
+    completed_stages: completedStages,
+    stage_number: nextStage
+  });
 }
 
 /* ------------------------------------------------------------------
     RESPONSES TABLE HELPERS
    ------------------------------------------------------------------ */
 
-interface ResponseEntry {
-  id?: string;
-  user_id: string;
-  question_text: string;
-  answer?: string;
-  stage_number?: number;
-  version?: number;
-  superseded?: boolean;
-  contradiction_flag?: boolean;
-}
-
 /**
  * Saves a user's response to the "responses" table.
  */
-export async function saveResponse(responseData: ResponseEntry): Promise<ResponseEntry[]> {
-  const insertObj: Record<string, unknown> = { ...responseData };
+export async function saveResponse(responseData: Partial<ResponseEntry>): Promise<ResponseEntry> {
+  if (!responseData.user_id) {
+    throw new Error("User ID is required");
+  }
+  
+  if (!isValidUUID(responseData.user_id)) {
+    throw new Error("Invalid user ID format");
+  }
+
+  const insertObj: Partial<ResponseEntry> = {
+    ...responseData,
+    version: responseData.version || 1,
+    superseded: responseData.superseded || false,
+    contradiction_flag: responseData.contradiction_flag || false,
+  };
 
   const { data, error } = await supabase
     .from("responses")
-    .insert([insertObj]);
+    .insert([insertObj])
+    .select()
+    .single();
 
   if (error) {
     console.error("Error saving response:", error);
@@ -136,6 +208,10 @@ export async function saveResponse(responseData: ResponseEntry): Promise<Respons
  * Fetch all responses (non-superseded by default) for a user.
  */
 export async function getResponses(userId: string, includeSuperseded = false): Promise<ResponseEntry[]> {
+  if (!isValidUUID(userId)) {
+    throw new Error("Invalid user ID format");
+  }
+
   const query = supabase
     .from("responses")
     .select("*")
@@ -152,13 +228,17 @@ export async function getResponses(userId: string, includeSuperseded = false): P
     throw error;
   }
 
-  return data!;
+  return data || [];
 }
 
 /**
  * Fetch a single response by its primary key (id).
  */
 export async function getResponseById(id: string): Promise<ResponseEntry | null> {
+  if (!isValidUUID(id)) {
+    throw new Error("Invalid response ID format");
+  }
+
   const { data, error } = await supabase
     .from("responses")
     .select("*")
@@ -179,11 +259,19 @@ export async function getResponseById(id: string): Promise<ResponseEntry | null>
 export async function updateResponse(
   responseId: string,
   updates: Partial<Omit<ResponseEntry, "id" | "user_id">>
-): Promise<ResponseEntry> {
+): Promise<ResponseEntry | null> {
+  if (!isValidUUID(responseId)) {
+    throw new Error("Invalid response ID format");
+  }
+
   const { data, error } = await supabase
     .from("responses")
-    .update(updates)
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", responseId)
+    .select()
     .single();
 
   if (error) {
@@ -191,13 +279,13 @@ export async function updateResponse(
     throw error;
   }
 
-  return data!;
+  return data;
 }
 
 /**
  * Mark/unmark a specific response as contradictory.
  */
-export async function markContradiction(responseId: string, isContradictory = true): Promise<ResponseEntry> {
+export async function markContradiction(responseId: string, isContradictory = true): Promise<ResponseEntry | null> {
   return updateResponse(responseId, { contradiction_flag: isContradictory });
 }
 
@@ -227,4 +315,28 @@ export async function replaceResponseWithNewVersion(responseId: string, newAnswe
         contradiction_flag: false,
       },
     ]);
+}
+
+/**
+ * Get responses for a specific stage
+ */
+export async function getResponsesByStage(userId: string, stageNumber: number): Promise<ResponseEntry[]> {
+  if (!isValidUUID(userId)) {
+    throw new Error("Invalid user ID format");
+  }
+
+  const { data, error } = await supabase
+    .from("responses")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("stage_number", stageNumber)
+    .eq("superseded", false)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching responses by stage:", error);
+    throw error;
+  }
+
+  return data || [];
 }
