@@ -94,7 +94,7 @@ export default function PrivacyPage() {
           <li>The right to data portability</li>
         </ul>
         
-        <h2>Children's Privacy</h2>
+        <h2>Children&apos;s Privacy</h2>
         <p>
           Our service is not intended for individuals under the age of 18. We do not knowingly collect personal 
           information from children under 18. If we become aware that we have collected personal information from 
@@ -104,7 +104,7 @@ export default function PrivacyPage() {
         <h2>Changes to This Privacy Policy</h2>
         <p>
           We may update our Privacy Policy from time to time. We will notify you of any changes by posting the new 
-          Privacy Policy on this page and updating the "Last updated" date.
+          Privacy Policy on this page and updating the &ldquo;Last updated&rdquo; date.
         </p>
         
         <h2>Contact Us</h2>

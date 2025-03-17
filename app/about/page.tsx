@@ -18,14 +18,14 @@ export default function AboutPage() {
         
         <h2>The Science Behind GoodFaith</h2>
         <p>
-          Our approach is based on Lawrence Kohlberg's stages of moral development, a psychological framework 
+          Our approach is based on Lawrence Kohlberg&apos;s stages of moral development, a psychological framework 
           that describes how moral reasoning develops through six distinct stages across three levels:
         </p>
         
         <h3>Pre-conventional Level (Stages 1-2)</h3>
         <ul>
           <li><strong>Stage 1: Obedience and Punishment Orientation</strong> - Where rules are obeyed to avoid punishment</li>
-          <li><strong>Stage 2: Self-Interest Orientation</strong> - Where the right action is defined by what serves one's own needs</li>
+          <li><strong>Stage 2: Self-Interest Orientation</strong> - Where the right action is defined by what serves one&apos;s own needs</li>
         </ul>
         
         <h3>Conventional Level (Stages 3-4)</h3>

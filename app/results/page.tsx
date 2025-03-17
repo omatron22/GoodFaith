@@ -64,8 +64,9 @@ export default function ResultsPage() {
       if (resData.error) throw new Error(resData.error);
       
       setSummary(resData.summary || "No summary available.");
-    } catch (err: any) {
-      setError(err.message || "Failed to load summary");
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to load summary";
+      setError(errorMessage);
       console.error("Summary fetch error:", err);
     } finally {
       setLoading(false);
@@ -165,7 +166,7 @@ export default function ResultsPage() {
               {userName ? userName.charAt(0) : "U"}
             </div>
             <div className="ml-4">
-              <h2 className="text-xl font-medium">{userName || "User"}'s Framework</h2>
+              <h2 className="text-xl font-medium">{userName || "User"}&apos;s Framework</h2>
               <p className="text-gray-500 text-sm">Completed on {new Date().toLocaleDateString()}</p>
             </div>
           </div>
@@ -187,9 +188,9 @@ export default function ResultsPage() {
       </div>
       
       <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-        <h2 className="text-xl font-semibold mb-4">What's Next?</h2>
+        <h2 className="text-xl font-semibold mb-4">What&apos;s Next?</h2>
         <p className="text-gray-700 mb-4">
-          Your moral journey doesn't end here. Continue to explore and refine your ethical framework with these suggestions:
+          Your moral journey doesn&apos;t end here. Continue to explore and refine your ethical framework with these suggestions:
         </p>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
@@ -219,7 +220,7 @@ export default function ResultsPage() {
           
           <div className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
             <h3 className="font-medium text-orange-600">Share Your Experience</h3>
-            <p className="text-gray-600 mt-1">Tell others about your GoodFaith journey and what you've learned.</p>
+            <p className="text-gray-600 mt-1">Tell others about your GoodFaith journey and what you&apos;ve learned.</p>
             <button 
               onClick={handleShare}
               className="text-orange-500 hover:text-orange-700 text-sm mt-2"

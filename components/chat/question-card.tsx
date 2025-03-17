@@ -1,4 +1,4 @@
-// components/QuestionCard.tsx
+// components/chat/question-card.tsx
 "use client";
 
 import React from "react";
@@ -18,9 +18,11 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, loading, error })
     <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
       <div className="border-b border-gray-200 p-3 bg-gray-50 flex justify-between items-center">
         <h2 className="text-lg font-semibold text-gray-800">Current Question</h2>
-        <div className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-          Moral Dilemma
-        </div>
+        {question && (
+          <div className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+            Moral Dilemma
+          </div>
+        )}
       </div>
 
       <div className="p-4">
@@ -41,9 +43,9 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, loading, error })
         ) : question ? (
           <div className="py-2">
             <div className="quote-bg relative">
-              <div className="text-3xl text-green-300 absolute -top-4 -left-2 opacity-50">"</div>
+              <div className="text-3xl text-green-300 absolute -top-4 -left-2 opacity-50">&ldquo;</div>
               <p className="text-lg text-gray-800 relative z-10 pl-4">{question}</p>
-              <div className="text-3xl text-green-300 absolute -bottom-8 -right-2 opacity-50">"</div>
+              <div className="text-3xl text-green-300 absolute -bottom-8 -right-2 opacity-50">&rdquo;</div>
             </div>
             <div className="mt-4 text-sm text-gray-500 italic">
               Take your time to reflect on this question before answering

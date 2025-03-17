@@ -1,9 +1,8 @@
-// lib/ollama.ts
-import { supabase } from "@/lib/db";
-import { saveResponse, getResponseById, markContradiction } from "@/lib/db";
+// lib/ai/index.ts
+import { saveResponse, getUserStage, getNonSupersededAnswers } from "@/lib/db";
 import { kohlbergStages } from "@/lib/constants";
 
-/** Adjust as needed for your local Ollama endpoint & model. */
+/** Get Ollama environment variables with fallbacks */
 const OLLAMA_URL = process.env.NEXT_PUBLIC_OLLAMA_URL || "http://127.0.0.1:11434";
 const OLLAMA_MODEL = process.env.NEXT_PUBLIC_OLLAMA_MODEL || "deepseek-r1";
 
@@ -43,47 +42,6 @@ export async function askLLM(prompt: string, temperature = 0.7) {
     console.error("🚨 Error querying Ollama API:", error);
     throw error;
   }
-}
-
-/**
- * Fetches the user's current stage_number from "progress".
- * Returns null if not found or error encountered.
- */
-async function getUserStage(userId: string): Promise<number | null> {
-  const { data, error } = await supabase
-    .from("progress")
-    .select("stage_number")
-    .eq("user_id", userId)
-    .single();
-
-  if (error || !data) {
-    console.error("Error or no progress found for user stage:", error);
-    return null;
-  }
-  return data.stage_number;
-}
-
-/**
- * Returns array of user answers that are not superseded,
- * sorted by creation time (ascending).
- */
-async function getNonSupersededAnswers(userId: string): Promise<Array<{ text: string, stage: number }>> {
-  const { data, error } = await supabase
-    .from("responses")
-    .select("answer, stage_number")
-    .eq("user_id", userId)
-    .eq("superseded", false)
-    .order("created_at", { ascending: true });
-
-  if (error) {
-    console.error("Error fetching user answers:", error);
-    return [];
-  }
-  
-  return data?.map(r => ({ 
-    text: r.answer || "", 
-    stage: r.stage_number || 1 
-  })) || [];
 }
 
 /**

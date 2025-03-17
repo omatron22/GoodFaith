@@ -1,10 +1,6 @@
-// lib/db.ts
-import { createClient } from "@supabase/supabase-js";
-import { isValidUUID } from "./utils";
-
-// Load environment variables
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+// lib/db/index.ts
+import { supabase } from "./supabase-client";
+import { isValidUUID } from "../utils";
 
 // Define database types
 export interface Progress {
@@ -31,9 +27,6 @@ export interface ResponseEntry {
   created_at?: string;
   updated_at?: string;
 }
-
-// Create Supabase client
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 /* ------------------------------------------------------------------
     PROGRESS TABLE HELPERS
@@ -173,7 +166,7 @@ export async function completeStage(userId: string, stageNumber: number): Promis
 /**
  * Saves a user's response to the "responses" table.
  */
-export async function saveResponse(responseData: Partial<ResponseEntry>): Promise<ResponseEntry> {
+export async function saveResponse(responseData: Partial<ResponseEntry>): Promise<ResponseEntry[]> {
   if (!responseData.user_id) {
     throw new Error("User ID is required");
   }
@@ -192,8 +185,7 @@ export async function saveResponse(responseData: Partial<ResponseEntry>): Promis
   const { data, error } = await supabase
     .from("responses")
     .insert([insertObj])
-    .select()
-    .single();
+    .select();
 
   if (error) {
     console.error("Error saving response:", error);
@@ -201,7 +193,7 @@ export async function saveResponse(responseData: Partial<ResponseEntry>): Promis
   }
 
   await incrementResponseCount(responseData.user_id);
-  return data!;
+  return data || [];
 }
 
 /**
@@ -340,3 +332,47 @@ export async function getResponsesByStage(userId: string, stageNumber: number): 
 
   return data || [];
 }
+
+/**
+ * Returns array of user answers that are not superseded,
+ * sorted by creation time (ascending).
+ */
+export async function getNonSupersededAnswers(userId: string): Promise<Array<{ text: string, stage: number }>> {
+  const { data, error } = await supabase
+    .from("responses")
+    .select("answer, stage_number")
+    .eq("user_id", userId)
+    .eq("superseded", false)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching user answers:", error);
+    return [];
+  }
+  
+  return data?.map(r => ({ 
+    text: r.answer || "", 
+    stage: r.stage_number || 1 
+  })) || [];
+}
+
+/**
+ * Fetches the user's current stage_number from "progress".
+ * Returns null if not found or error encountered.
+ */
+export async function getUserStage(userId: string): Promise<number | null> {
+  const { data, error } = await supabase
+    .from("progress")
+    .select("stage_number")
+    .eq("user_id", userId)
+    .single();
+
+  if (error || !data) {
+    console.error("Error or no progress found for user stage:", error);
+    return null;
+  }
+  return data.stage_number;
+}
+
+// Export the supabase client to be used elsewhere
+export { supabase };

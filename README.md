@@ -1,34 +1,82 @@
-# GoodFaith Project Setup Guide
+# GoodFaith - Moral Framework Explorer
 
 GoodFaith is an interactive web application that helps users explore their moral reasoning framework through a series of questions based on Kohlberg's stages of moral development.
 
-## Project Structure
+## Features
 
-The project follows a Next.js 14 App Router structure:
+- **User Authentication** - Secure email/password signup and login via Supabase Auth
+- **Stage-Based Questions** - Progress through Kohlberg's six stages of moral development
+- **AI-Powered Analysis** - Ollama-powered LLM generates personalized questions and detects contradictions
+- **Contradiction Resolution** - Identify and resolve inconsistencies in moral reasoning
+- **Progress Tracking** - Visual dashboard showing journey progress and stages completed
+- **Final Analysis** - Comprehensive moral framework evaluation with personalized insights
+
+## Tech Stack
+
+- **Frontend**: Next.js 14, React 19, Tailwind CSS
+- **Backend**: Supabase (PostgreSQL + Authentication)
+- **AI Integration**: Ollama (local LLM service)
+- **Styling**: Tailwind CSS with custom components
+- **Deployment**: Vercel-compatible
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+ installed
+- [Supabase](https://supabase.io/) account
+- [Ollama](https://ollama.ai/) running locally or on a server
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/goodfaith.git
+   cd goodfaith
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Copy the environment variables file and fill in your values:
+   ```bash
+   cp .env.example .env.local
+   ```
+
+4. Start Ollama with a compatible model:
+   ```bash
+   ollama pull deepseek-r1  # or another compatible model
+   ollama serve
+   ```
+
+5. Run the development server:
+   ```bash
+   npm run dev
+   ```
+
+### Database Setup
+
+1. Create a new Supabase project
+2. Execute the SQL queries in `database/schema.sql` to set up your tables
+3. Set up Row Level Security (RLS) policies as described in the README
+
+## Project Structure
 
 ```
 /app                        # Next.js App Router pages
   /(auth)                   # Auth-related routes
-    /login                  # Login page
-    /signup                 # Signup page
   /api                      # API routes
-    /contradictions         # Contradiction handling endpoints
-    /progress               # User progress endpoints
-    /questions              # Question generation endpoints
-    /responses              # User response endpoints
   /about                    # About page
   /chat                     # Main Q&A interface
   /dashboard                # User dashboard
-  /history                  # Response history
-  /resources                # Educational resources
-  /results                  # Analysis results
-  /...                      # Other pages
+  ...
 
 /components                 # Reusable components
   /chat                     # Chat-related components
-  /dashboard                # Dashboard components
   /layout                   # Layout components
-  /ui                       # Basic UI components
+  ...
 
 /lib                        # Utility functions and services
   /ai                       # AI/LLM integration
@@ -39,187 +87,42 @@ The project follows a Next.js 14 App Router structure:
 /public                     # Static assets
 ```
 
-## Getting Started
+## Key Features Explained
 
-### Prerequisites
+### Moral Journey
 
-- Node.js 18+ installed
-- Supabase account (for database and authentication)
-- Ollama-compatible model running locally or on a server
+The user progresses through questions based on Kohlberg's six stages of moral development:
 
-### Environment Setup
+1. **Obedience and Punishment** - Focus on avoiding punishment
+2. **Self-Interest** - Focus on what's in it for me
+3. **Interpersonal Accord** - Focus on social approval
+4. **Authority and Social Order** - Focus on law and duty
+5. **Social Contract** - Focus on agreed-upon rights
+6. **Universal Ethical Principles** - Focus on abstract principles
 
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Create a `.env.local` file with the following:
-   ```
-   NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-   NEXT_PUBLIC_OLLAMA_URL=http://localhost:11434
-   NEXT_PUBLIC_OLLAMA_MODEL=deepseek-r1
-   ```
+### Contradiction Detection
 
-### Database Setup
+The AI analyzes responses for contradictions in moral reasoning. When found, it helps users reconcile these contradictions through clarifying questions, promoting more coherent ethical frameworks.
 
-1. Create a new Supabase project
-2. Execute the following SQL to set up your tables:
+### Final Analysis
 
-```sql
--- Progress table
-CREATE TABLE progress (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  stage_number INTEGER DEFAULT 1,
-  status TEXT DEFAULT 'active',
-  responses_count INTEGER DEFAULT 0,
-  contradictions BOOLEAN DEFAULT false,
-  last_updated TIMESTAMP WITH TIME ZONE DEFAULT now(),
-  completed_stages INTEGER[] DEFAULT '{}',
-  current_question_id UUID,
-  
-  UNIQUE(user_id)
-);
+After completing multiple questions, the system generates a comprehensive analysis of the user's moral reasoning framework, including:
 
--- Responses table
-CREATE TABLE responses (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  question_text TEXT NOT NULL,
-  answer TEXT,
-  stage_number INTEGER,
-  version INTEGER DEFAULT 1,
-  superseded BOOLEAN DEFAULT false,
-  contradiction_flag BOOLEAN DEFAULT false,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
-);
+- Summary of moral reasoning style
+- Connection to Kohlberg's framework
+- Strengths observed
+- Questions for further reflection
 
--- Create indexes for common queries
-CREATE INDEX responses_user_id_idx ON responses(user_id);
-CREATE INDEX responses_superseded_idx ON responses(user_id, superseded);
+## Contributing
 
--- Add Row Level Security (RLS) policies
--- This ensures users can only access their own data
-
--- Progress table policies
-ALTER TABLE progress ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view own progress"
-  ON progress FOR SELECT
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own progress"
-  ON progress FOR UPDATE
-  USING (auth.uid() = user_id);
-
--- Responses table policies
-ALTER TABLE responses ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view own responses"
-  ON responses FOR SELECT
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert own responses"
-  ON responses FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own responses"
-  ON responses FOR UPDATE
-  USING (auth.uid() = user_id);
-```
-
-### LLM Setup
-
-1. Install Ollama from https://ollama.ai/
-2. Pull a compatible model:
-   ```bash
-   ollama pull deepseek-r1
-   ```
-   (you can also use another model like `llama`, `mistral`, or another compatible model)
-
-3. Run the Ollama server:
-   ```bash
-   ollama serve
-   ```
-
-## Development
-
-Run the development server:
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) to view the application.
-
-## Key Features
-
-1. **User Authentication**
-   - Email/password signup and login via Supabase Auth
-
-2. **Moral Journey**
-   - Stage-based questions following Kohlberg's stages
-   - AI adapts questions based on user history
-
-3. **Contradiction Detection**
-   - AI analyzes response consistency
-   - Helps users resolve contradictions in their moral reasoning
-
-4. **Progress Tracking**
-   - Dashboard shows journey progress
-   - Visual representation of stages completed
-
-5. **Final Analysis**
-   - Comprehensive moral framework evaluation
-   - Personalized insights and suggested areas for reflection
-
-## File Descriptions
-
-### Core Components
-
-- `app/chat/page.tsx` - Main interface for Q&A interaction
-- `app/dashboard/page.tsx` - User progress dashboard
-- `app/results/page.tsx` - Final analysis display
-- `components/chat/question-card.tsx` - Question display component
-- `components/chat/chatbox.tsx` - Conversation history display
-
-### Database Utilities
-
-- `lib/db/index.ts` - Supabase database integration
-- Main functions:
-  - `getProgress` - Fetch user progress
-  - `saveResponse` - Save a user response
-  - `getResponses` - Get user's conversation history
-  - `getResponsesByStage` - Get responses for a specific stage
-
-### AI Utilities
-
-- `lib/ai/index.ts` - Ollama LLM integration
-- Main functions:
-  - `generateNextQuestion` - Generate personalized questions
-  - `checkForContradictions` - Analyze moral consistency
-  - `resolveContradictions` - Help resolve conflicts
-  - `generateFinalEvaluation` - Create final analysis
-
-## Deployment
-
-This application can be deployed on Vercel or any other platform supporting Next.js:
-
-1. Connect your Git repository to Vercel
-2. Configure environment variables
-3. Deploy
-
-## Credits
-
-This project uses:
-- Next.js for framework
-- Tailwind CSS for styling
-- Supabase for database and authentication
-- Ollama for local LLM integration
+Contributions are welcome! Please check out our [contributing guidelines](CONTRIBUTING.md).
 
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- Lawrence Kohlberg for his theory of moral development
+- The Supabase team for their excellent database and auth system
+- The Ollama project for making local LLMs accessible

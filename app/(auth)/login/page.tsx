@@ -3,7 +3,13 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "@/lib/db";
+import { supabase } from "@/lib/db/supabase-client";
+import { AuthError } from "@supabase/supabase-js";
+
+interface LoginError {
+  message: string;
+  status?: number;
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -41,8 +47,17 @@ export default function LoginPage() {
       if (data.user) {
         router.push("/dashboard");
       }
-    } catch (error: any) {
-      setError(error.message || "An error occurred during login");
+    } catch (error: unknown) {
+      // Handle different error types
+      let errorMessage = "An error occurred during login";
+      
+      if (error instanceof AuthError) {
+        errorMessage = error.message;
+      } else if (typeof error === 'object' && error !== null && 'message' in error) {
+        errorMessage = (error as LoginError).message;
+      }
+      
+      setError(errorMessage);
       console.error("Login error:", error);
     } finally {
       setLoading(false);
@@ -162,7 +177,7 @@ export default function LoginPage() {
 
           <div className="text-center mt-4">
             <span className="text-gray-600 text-sm">
-              Don't have an account?{" "}
+              Don&apos;t have an account?{" "}
               <Link
                 href="/signup"
                 className="font-medium text-green-600 hover:text-green-500"

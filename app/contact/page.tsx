@@ -40,9 +40,9 @@ export default function ContactPage() {
       setEmail("");
       setSubject("");
       setMessage("");
-    } catch (err) {
+    } catch (error: unknown) {
       setError("An error occurred while sending your message. Please try again later.");
-      console.error("Contact form error:", err);
+      console.error("Contact form error:", error);
     } finally {
       setLoading(false);
     }
@@ -58,15 +58,15 @@ export default function ContactPage() {
         <div>
           <div className="prose prose-lg">
             <p>
-              Have questions, feedback, or just want to say hello? We'd love to hear from you! 
-              Fill out the form, and we'll get back to you as soon as possible.
+              Have questions, feedback, or just want to say hello? We&apos;d love to hear from you! 
+              Fill out the form, and we&apos;ll get back to you as soon as possible.
             </p>
             
             <h2>Get in Touch</h2>
             <p>
               Our team is dedicated to helping you get the most out of your GoodFaith experience. 
-              Whether you're experiencing technical issues, have suggestions for improvement, 
-              or want to discuss philosophical questions about moral development, we're here to help.
+              Whether you&apos;re experiencing technical issues, have suggestions for improvement, 
+              or want to discuss philosophical questions about moral development, we&apos;re here to help.
             </p>
             
             <h2>Support Hours</h2>
@@ -126,7 +126,7 @@ export default function ContactPage() {
               </div>
               <h3 className="text-xl font-medium text-green-800 mb-2">Message Sent!</h3>
               <p className="text-green-700">
-                Thank you for reaching out. We'll get back to you as soon as possible.
+                Thank you for reaching out. We&apos;ll get back to you as soon as possible.
               </p>
               <button 
                 onClick={() => setSuccess(false)} 

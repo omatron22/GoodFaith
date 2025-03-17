@@ -25,8 +25,8 @@ export function isValidUUID(uuid: string): boolean {
   /**
    * Truncates text to a specified length with ellipsis
    */
-  export function truncateText(text: string, maxLength: number): string {
-    if (text.length <= maxLength) return text;
+  export function truncateText(text: string, maxLength: number = 100): string {
+    if (!text || text.length <= maxLength) return text || '';
     return text.substring(0, maxLength) + '...';
   }
   
@@ -55,4 +55,53 @@ export function isValidUUID(uuid: string): boolean {
     
     const years = Math.floor(months / 12);
     return `${years} year${years !== 1 ? 's' : ''} ago`;
+  }
+  
+  /**
+   * Safely attempts to parse JSON, returning null if parsing fails
+   */
+  export function safeJsonParse<T>(jsonString: string): T | null {
+    try {
+      return JSON.parse(jsonString) as T;
+    } catch (error) {
+      console.error('Error parsing JSON:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Format a number with commas
+   */
+  export function formatNumber(num: number): string {
+    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+  
+  /**
+   * Validates an email address
+   */
+  export function isValidEmail(email: string): boolean {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(email);
+  }
+  
+  /**
+   * Creates a debounced function that delays invoking the provided function
+   */
+  export function debounce<T extends (...args: unknown[]) => unknown>(
+    func: T,
+    wait: number
+  ): (...args: Parameters<T>) => void {
+    let timeout: NodeJS.Timeout | null = null;
+    
+    return function(...args: Parameters<T>): void {
+      const later = () => {
+        timeout = null;
+        func(...args);
+      };
+      
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+      timeout = setTimeout(later, wait);
+    };
   }

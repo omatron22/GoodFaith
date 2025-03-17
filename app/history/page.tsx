@@ -3,10 +3,16 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "@/lib/db";
+import { supabase } from "@/lib/db/supabase-client";
 import { getResponses, ResponseEntry } from "@/lib/db";
 import { kohlbergStages } from "@/lib/constants";
 import { formatDate, timeAgo } from "@/lib/utils";
+import { AuthError } from "@supabase/supabase-js";
+
+interface APIError {
+  message: string;
+  status?: number;
+}
 
 export default function HistoryPage() {
   const [responses, setResponses] = useState<ResponseEntry[]>([]);
@@ -20,7 +26,9 @@ export default function HistoryPage() {
     async function fetchResponses() {
       try {
         setLoading(true);
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError) throw authError;
         
         if (!user) {
           router.push('/login');
@@ -29,9 +37,19 @@ export default function HistoryPage() {
         
         const allResponses = await getResponses(user.id, includeSuperseded);
         setResponses(allResponses);
-      } catch (err: any) {
-        setError(err.message || "Failed to load response history");
-        console.error("History load error:", err);
+      } catch (error: unknown) {
+        let errorMessage = "Failed to load response history";
+        
+        if (error instanceof AuthError) {
+          errorMessage = error.message;
+        } else if (error instanceof Error) {
+          errorMessage = error.message;
+        } else if (typeof error === 'object' && error !== null && 'message' in error) {
+          errorMessage = (error as APIError).message;
+        }
+        
+        setError(errorMessage);
+        console.error("History load error:", error);
       } finally {
         setLoading(false);
       }

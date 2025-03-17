@@ -1,11 +1,12 @@
+// app/api/responses/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getResponses, updateResponse } from "@/lib/db";
 import { checkForContradictions } from "@/lib/ai";
-import { supabase } from "@/lib/db";
+import { supabase } from "@/lib/db/supabase-client";
 
 /**
  * GET /api/responses
- * Query params: userId, includeSuperseded (optional, defaults to false)
+ * Query params: includeSuperseded (optional, defaults to false)
  * Retrieves all of a user's responses.
  */
 export async function GET(request: NextRequest) {
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
 
 /**
  * PATCH /api/responses
- * Body: { responseId: string, userId: string, answer: string }
+ * Body: { responseId: string, answer: string }
  * Updates a response with the user's answer and checks for contradictions.
  */
 export async function PATCH(request: NextRequest) {

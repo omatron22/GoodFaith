@@ -37,7 +37,7 @@ export default function HomePage() {
         
         <p className="text-xl text-gray-700 max-w-2xl mx-auto mb-8">
           Explore your moral reasoning framework through interactive questions based on 
-          Kohlberg's stages of moral development.
+          Kohlberg&apos;s stages of moral development.
         </p>
         
         <button 
@@ -85,7 +85,7 @@ export default function HomePage() {
               </svg>
             </div>
             <h3 className="text-xl font-medium mb-2">Learn & Grow</h3>
-            <p className="text-gray-600">Access educational resources on moral philosophy and track your progress through Kohlberg's stages.</p>
+            <p className="text-gray-600">Access educational resources on moral philosophy and track your progress through Kohlberg&apos;s stages.</p>
           </div>
         </div>
       </div>

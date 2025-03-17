@@ -12,7 +12,7 @@ export default function TermsPage() {
         
         <h2>1. Acceptance of Terms</h2>
         <p>
-          By accessing or using the GoodFaith service ("Service"), you agree to be bound by these Terms of Service ("Terms"). 
+          By accessing or using the GoodFaith service (&quot;Service&quot;), you agree to be bound by these Terms of Service (&quot;Terms&quot;). 
           If you disagree with any part of the terms, you may not access the Service.
         </p>
         
@@ -63,7 +63,7 @@ export default function TermsPage() {
         
         <h2>8. Disclaimer</h2>
         <p>
-          The Service is provided on an "AS IS" and "AS AVAILABLE" basis. GoodFaith does not warrant that the Service 
+          The Service is provided on an &quot;AS IS&quot; and &quot;AS AVAILABLE&quot; basis. GoodFaith does not warrant that the Service 
           will be uninterrupted, timely, secure, or error-free. Results from the use of the Service are not intended 
           to replace professional advice, including psychological, ethical, or philosophical guidance.
         </p>

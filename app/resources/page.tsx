@@ -2,7 +2,6 @@
 "use client";
 
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 // Resource categories
@@ -107,7 +106,6 @@ export default function ResourcesPage() {
   const [category, setCategory] = useState<string>("All");
   const [level, setLevel] = useState<string>("All");
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const router = useRouter();
   
   // Filter resources based on selected filters
   const filteredResources = RESOURCES.filter(resource => {
@@ -260,9 +258,9 @@ export default function ResourcesPage() {
       
       {/* Additional info */}
       <div className="bg-green-50 border border-green-100 rounded-lg p-6 mb-8">
-        <h2 className="text-xl font-semibold text-gray-800 mb-3">About Kohlberg's Stages</h2>
+        <h2 className="text-xl font-semibold text-gray-800 mb-3">About Kohlberg&apos;s Stages</h2>
         <p className="text-gray-700 mb-4">
-          Lawrence Kohlberg's theory of moral development outlines six stages across three levels,
+          Lawrence Kohlberg&apos;s theory of moral development outlines six stages across three levels,
           describing how individuals reason about ethical dilemmas throughout their lives.
         </p>
         

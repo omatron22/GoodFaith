@@ -1,9 +1,10 @@
+// components/layout/auth-header.tsx
 "use client";
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { supabase } from "@/lib/db";
+import { supabase } from "@/lib/db/supabase-client";
 
 export default function AuthHeader() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
@@ -15,6 +16,7 @@ export default function AuthHeader() {
   const pathname = usePathname();
   const router = useRouter();
 
+  // Check authentication status on mount
   useEffect(() => {
     async function checkAuth() {
       try {
@@ -42,6 +44,26 @@ export default function AuthHeader() {
       authListener.subscription.unsubscribe();
     };
   }, []);
+
+  // Close the dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as HTMLElement;
+      if (dropdownOpen && target.closest('[data-dropdown]') === null) {
+        setDropdownOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [dropdownOpen]);
+
+  // Close mobile menu on navigation
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
 
   async function handleSignOut() {
     try {
@@ -126,7 +148,7 @@ export default function AuthHeader() {
           {loading ? (
             <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse"></div>
           ) : isLoggedIn ? (
-            <div className="relative">
+            <div className="relative" data-dropdown>
               <button 
                 onClick={() => setDropdownOpen(!dropdownOpen)} 
                 className="flex items-center space-x-2 text-gray-700 hover:text-green-600"
@@ -165,13 +187,6 @@ export default function AuthHeader() {
                       className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
                     >
                       Response History
-                    </Link>
-                    <Link 
-                      href="/settings" 
-                      onClick={() => setDropdownOpen(false)} 
-                      className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
-                    >
-                      Account Settings
                     </Link>
                     <button 
                       onClick={() => {
@@ -227,7 +242,6 @@ export default function AuthHeader() {
           <nav className="flex flex-col space-y-4">
             <Link 
               href="/" 
-              onClick={() => setMobileMenuOpen(false)} 
               className={`text-gray-700 hover:text-green-600 ${isActive("/") ? "text-green-600 font-medium" : ""}`}
             >
               Home
@@ -236,21 +250,18 @@ export default function AuthHeader() {
               <>
                 <Link 
                   href="/dashboard" 
-                  onClick={() => setMobileMenuOpen(false)} 
                   className={`text-gray-700 hover:text-green-600 ${isActive("/dashboard") ? "text-green-600 font-medium" : ""}`}
                 >
                   Dashboard
                 </Link>
                 <Link 
                   href="/chat" 
-                  onClick={() => setMobileMenuOpen(false)} 
                   className={`text-gray-700 hover:text-green-600 ${isActive("/chat") ? "text-green-600 font-medium" : ""}`}
                 >
                   Explore
                 </Link>
                 <Link 
                   href="/history" 
-                  onClick={() => setMobileMenuOpen(false)} 
                   className={`text-gray-700 hover:text-green-600 ${isActive("/history") ? "text-green-600 font-medium" : ""}`}
                 >
                   History
@@ -259,14 +270,12 @@ export default function AuthHeader() {
             )}
             <Link 
               href="/resources" 
-              onClick={() => setMobileMenuOpen(false)} 
               className={`text-gray-700 hover:text-green-600 ${isActive("/resources") ? "text-green-600 font-medium" : ""}`}
             >
               Resources
             </Link>
             <Link 
               href="/about" 
-              onClick={() => setMobileMenuOpen(false)} 
               className={`text-gray-700 hover:text-green-600 ${isActive("/about") ? "text-green-600 font-medium" : ""}`}
             >
               About
@@ -286,10 +295,7 @@ export default function AuthHeader() {
                     <span className="text-gray-700">{formatEmail(userEmail)}</span>
                   </div>
                   <button 
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      handleSignOut();
-                    }} 
+                    onClick={handleSignOut} 
                     className="w-full py-2 bg-red-100 text-red-700 rounded text-center"
                   >
                     Sign Out
@@ -299,14 +305,12 @@ export default function AuthHeader() {
                 <div className="flex flex-col space-y-2">
                   <Link 
                     href="/login" 
-                    onClick={() => setMobileMenuOpen(false)} 
                     className="w-full py-2 bg-gray-100 text-gray-700 rounded text-center"
                   >
                     Sign In
                   </Link>
                   <Link 
                     href="/signup" 
-                    onClick={() => setMobileMenuOpen(false)} 
                     className="w-full py-2 bg-green-500 text-white rounded text-center"
                   >
                     Sign Up

@@ -3,10 +3,24 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/db";
+import { supabase } from "@/lib/db/supabase-client";
 import QuestionCard from "@/components/chat/question-card";
 import ChatBox from "@/components/chat/chatbox";
 import { kohlbergStages } from "@/lib/constants";
+import { AuthError } from "@supabase/supabase-js";
+
+// Define interfaces for error handling
+interface ApiError {
+  message: string;
+  status?: number;
+}
+
+// Define interfaces for API responses
+interface ResponseData {
+  id: string;
+  question_text: string;
+  answer?: string;
+}
 
 export default function ChatPage() {
   const [userId, setUserId] = useState<string | null>(null);
@@ -40,9 +54,17 @@ export default function ChatPage() {
         } else {
           router.push("/login");
         }
-      } catch (err: any) {
-        setError(err.message || "Authentication error");
-        console.error("Auth error:", err);
+      } catch (error: unknown) {
+        let errorMessage = "Authentication error";
+        
+        if (error instanceof AuthError) {
+          errorMessage = error.message;
+        } else if (typeof error === 'object' && error !== null && 'message' in error) {
+          errorMessage = (error as ApiError).message;
+        }
+        
+        setError(errorMessage);
+        console.error("Auth error:", error);
       }
     }
     fetchUser();
@@ -61,9 +83,15 @@ export default function ChatPage() {
       if (data.progress && data.progress.stage_number) {
         setCurrentStage(data.progress.stage_number);
       }
-    } catch (err: any) {
-      setError(err.message || "Failed to initialize progress");
-      console.error("Progress init error:", err);
+    } catch (error: unknown) {
+      let errorMessage = "Failed to initialize progress";
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      setError(errorMessage);
+      console.error("Progress init error:", error);
     }
   }, [userId]);
 
@@ -87,9 +115,15 @@ export default function ChatPage() {
       setCurrentResponseId(data.responseId || null);
       setAnswer("");
       setContradiction(null);
-    } catch (err: any) {
-      setError(err.message || "Failed to fetch next question");
-      console.error("Question fetch error:", err);
+    } catch (error: unknown) {
+      let errorMessage = "Failed to fetch next question";
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      setError(errorMessage);
+      console.error("Question fetch error:", error);
     } finally {
       setLoading(false);
       setThinking(false);
@@ -118,9 +152,15 @@ export default function ChatPage() {
       setContradiction(null);
       setShowCustomQuestion(false);
       setTheme("");
-    } catch (err: any) {
-      setError(err.message || "Failed to generate custom question");
-      console.error("Custom question error:", err);
+    } catch (error: unknown) {
+      let errorMessage = "Failed to generate custom question";
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      setError(errorMessage);
+      console.error("Custom question error:", error);
     } finally {
       setLoading(false);
       setThinking(false);
@@ -145,15 +185,21 @@ export default function ChatPage() {
       if (data.error) throw new Error(data.error);
 
       setHistory(
-        data.responses?.map((r: any) => ({ 
+        data.responses?.map((r: ResponseData) => ({ 
           id: r.id,
           question: r.question_text, 
           answer: r.answer || "" 
         })) || []
       );
-    } catch (err: any) {
-      setError(err.message || "Failed to load conversation history");
-      console.error("History load error:", err);
+    } catch (error: unknown) {
+      let errorMessage = "Failed to load conversation history";
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      setError(errorMessage);
+      console.error("History load error:", error);
     } finally {
       setLoading(false);
     }
@@ -191,9 +237,15 @@ export default function ChatPage() {
         setHistory((prev) => [...prev, { id: currentResponseId || undefined, question: currentQuestion, answer }]);
         fetchNextQuestion();
       }
-    } catch (err: any) {
-      setError(err.message || "Failed to submit answer");
-      console.error("Answer submit error:", err);
+    } catch (error: unknown) {
+      let errorMessage = "Failed to submit answer";
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      setError(errorMessage);
+      console.error("Answer submit error:", error);
     } finally {
       setLoading(false);
       setSubmitting(false);
@@ -227,9 +279,15 @@ export default function ChatPage() {
       } else {
         setError("The contradiction hasn't been fully resolved. Please try to clarify your perspective further.");
       }
-    } catch (err: any) {
-      setError(err.message || "Failed to check resolution");
-      console.error("Resolution check error:", err);
+    } catch (error: unknown) {
+      let errorMessage = "Failed to check resolution";
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      setError(errorMessage);
+      console.error("Resolution check error:", error);
     } finally {
       setLoading(false);
       setSubmitting(false);
@@ -254,9 +312,15 @@ export default function ChatPage() {
 
       // Navigate to results page with the summary
       router.push(`/results?summary=${encodeURIComponent(data.summary)}`);
-    } catch (err: any) {
-      setError(err.message || "Failed to generate final evaluation");
-      console.error("Final evaluation error:", err);
+    } catch (error: unknown) {
+      let errorMessage = "Failed to generate final evaluation";
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      setError(errorMessage);
+      console.error("Final evaluation error:", error);
     } finally {
       setLoading(false);
       setThinking(false);

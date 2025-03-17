@@ -3,7 +3,13 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "@/lib/db";
+import { supabase } from "@/lib/db/supabase-client";
+import { AuthError } from "@supabase/supabase-js";
+
+interface SignupError {
+  message: string;
+  status?: number;
+}
 
 export default function SignupPage() {
   const [email, setEmail] = useState("");
@@ -56,8 +62,6 @@ export default function SignupPage() {
 
       if (error) throw error;
       
-      setSuccess(true);
-      
       // If email confirmation is required, show a success message
       // Otherwise, redirect to dashboard
       if (data.user?.identities?.length === 0) {
@@ -70,8 +74,16 @@ export default function SignupPage() {
         // No confirmation required, redirect to dashboard
         router.push("/dashboard");
       }
-    } catch (error: any) {
-      setError(error.message || "An error occurred during signup");
+    } catch (error: unknown) {
+      let errorMessage = "An error occurred during signup";
+      
+      if (error instanceof AuthError) {
+        errorMessage = error.message;
+      } else if (typeof error === 'object' && error !== null && 'message' in error) {
+        errorMessage = (error as SignupError).message;
+      }
+      
+      setError(errorMessage);
       console.error("Signup error:", error);
     } finally {
       setLoading(false);
@@ -104,7 +116,7 @@ export default function SignupPage() {
           </div>
           <h2 className="text-2xl font-bold text-green-600">Success! Check your email</h2>
           <p className="text-gray-600 mb-4">
-            We've sent a confirmation link to your email. Please check your inbox and confirm your account.
+            We&apos;ve sent a confirmation link to your email. Please check your inbox and confirm your account.
           </p>
           <div className="mt-6">
             <Link href="/login" className="text-green-600 hover:text-green-500 font-medium">

@@ -1,7 +1,8 @@
-// components/ChatBox.tsx
+// components/chat/chatbox.tsx
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { truncateText } from "@/lib/utils";
 
 interface ChatBoxProps {
   history: Array<{ question: string; answer: string; id?: string }>;
@@ -17,7 +18,9 @@ const ChatBox: React.FC<ChatBoxProps> = ({ history }) => {
 
   // Auto-scroll to latest message
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
   }, [history]);
 
   // Toggle item expansion
@@ -30,12 +33,6 @@ const ChatBox: React.FC<ChatBoxProps> = ({ history }) => {
   const formatTime = () => {
     const now = new Date();
     return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
-  // Truncate long text for better UI
-  const truncateText = (text: string, maxLength: number = 100) => {
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
   };
 
   return (
@@ -95,7 +92,10 @@ const ChatBox: React.FC<ChatBoxProps> = ({ history }) => {
                       onClick={() => toggleItem(item.id)}
                     >
                       <p className="text-gray-800">
-                        {expandedItem === item.id ? item.answer : truncateText(item.answer)}
+                        {expandedItem === item.id 
+                          ? item.answer 
+                          : truncateText(item.answer, 100)
+                        }
                         {item.answer.length > 100 && (
                           <button 
                             className="text-blue-500 hover:text-blue-700 text-xs ml-1 font-medium"
