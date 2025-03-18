@@ -1,4 +1,4 @@
-// app/chat/page.tsx
+// app/chat/page.tsx - FIXED
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
@@ -50,8 +50,10 @@ export default function ChatPage() {
         if (error) throw error;
         
         if (data?.user) {
+          console.log("User authenticated:", data.user.id);
           setUserId(data.user.id);
         } else {
+          console.log("No user found, redirecting to login");
           router.push("/login");
         }
       } catch (error: unknown) {
@@ -73,8 +75,22 @@ export default function ChatPage() {
   const initUserProgress = useCallback(async () => {
     if (!userId) return;
     try {
-      const res = await fetch("/api/progress");
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+      console.log("Fetching user progress...");
+      
+      // Add headers with auth token - fetched directly from Supabase before the request
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      
+      const res = await fetch("/api/progress", {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      
+      if (!res.ok) {
+        console.error(`Progress API error ${res.status}:`, await res.text());
+        throw new Error(`HTTP error ${res.status}`);
+      }
       
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -83,6 +99,7 @@ export default function ChatPage() {
       if (data.progress && data.progress.stage_number) {
         setCurrentStage(data.progress.stage_number);
       }
+      console.log("Progress loaded successfully");
     } catch (error: unknown) {
       let errorMessage = "Failed to initialize progress";
       
@@ -100,13 +117,24 @@ export default function ChatPage() {
     try {
       setThinking(true);
       setLoading(true);
+      
+      // Add headers with auth token - fetched directly from Supabase before the request
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      
       const res = await fetch("/api/questions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({ userId }),
       });
       
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+      if (!res.ok) {
+        console.error(`Questions API error ${res.status}:`, await res.text());
+        throw new Error(`HTTP error ${res.status}`);
+      }
       
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -115,6 +143,7 @@ export default function ChatPage() {
       setCurrentResponseId(data.responseId || null);
       setAnswer("");
       setContradiction(null);
+      console.log("Question loaded successfully:", data.question);
     } catch (error: unknown) {
       let errorMessage = "Failed to fetch next question";
       
@@ -135,13 +164,24 @@ export default function ChatPage() {
     try {
       setThinking(true);
       setLoading(true);
+      
+      // Add headers with auth token - fetched directly from Supabase before the request
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      
       const res = await fetch("/api/questions/custom", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({ userId, theme }),
       });
       
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+      if (!res.ok) {
+        console.error(`Custom Question API error ${res.status}:`, await res.text());
+        throw new Error(`HTTP error ${res.status}`);
+      }
       
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -177,9 +217,21 @@ export default function ChatPage() {
     if (!userId) return;
     try {
       setLoading(true);
-      const res = await fetch(`/api/responses?userId=${userId}`);
       
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+      // Add headers with auth token - fetched directly from Supabase before the request
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      
+      const res = await fetch("/api/responses", {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      
+      if (!res.ok) {
+        console.error(`Responses API error ${res.status}:`, await res.text());
+        throw new Error(`HTTP error ${res.status}`);
+      }
       
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -191,6 +243,7 @@ export default function ChatPage() {
           answer: r.answer || "" 
         })) || []
       );
+      console.log("History loaded successfully, items:", data.responses?.length || 0);
     } catch (error: unknown) {
       let errorMessage = "Failed to load conversation history";
       
@@ -219,13 +272,24 @@ export default function ChatPage() {
     try {
       setSubmitting(true);
       setLoading(true);
+      
+      // Add headers with auth token - fetched directly from Supabase before the request
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      
       const res = await fetch("/api/responses", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ responseId: currentResponseId, userId, answer }),
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ responseId: currentResponseId, answer }),
       });
       
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+      if (!res.ok) {
+        console.error(`Submit answer API error ${res.status}:`, await res.text());
+        throw new Error(`HTTP error ${res.status}`);
+      }
       
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -260,13 +324,24 @@ export default function ChatPage() {
     try {
       setSubmitting(true);
       setLoading(true);
+      
+      // Add headers with auth token - fetched directly from Supabase before the request
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      
       const res = await fetch("/api/contradictions/check-resolution", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({ userId, resolutionText }),
       });
       
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+      if (!res.ok) {
+        console.error(`Contradiction resolution API error ${res.status}:`, await res.text());
+        throw new Error(`HTTP error ${res.status}`);
+      }
       
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -299,13 +374,24 @@ export default function ChatPage() {
     try {
       setThinking(true);
       setLoading(true);
+      
+      // Add headers with auth token - fetched directly from Supabase before the request
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      
       const res = await fetch("/api/progress/final", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({ userId }),
       });
       
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+      if (!res.ok) {
+        console.error(`Final evaluation API error ${res.status}:`, await res.text());
+        throw new Error(`HTTP error ${res.status}`);
+      }
       
       const data = await res.json();
       if (data.error) throw new Error(data.error);

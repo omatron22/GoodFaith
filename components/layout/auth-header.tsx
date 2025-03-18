@@ -1,4 +1,4 @@
-// components/layout/auth-header.tsx
+// components/layout/auth-header.tsx - FIXED
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -18,15 +18,22 @@ export default function AuthHeader() {
 
   // Check authentication status on mount
   useEffect(() => {
+    let isMounted = true;
+
     async function checkAuth() {
       try {
         const { data } = await supabase.auth.getUser();
-        setIsLoggedIn(!!data.user);
-        setUserEmail(data.user?.email || null);
+        
+        if (isMounted) {
+          setIsLoggedIn(!!data.user);
+          setUserEmail(data.user?.email || null);
+          setLoading(false);
+        }
       } catch (error) {
         console.error("Auth check error:", error);
-      } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     }
     
@@ -35,12 +42,15 @@ export default function AuthHeader() {
     // Setup auth state change listener
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        setIsLoggedIn(!!session);
-        setUserEmail(session?.user?.email || null);
+        if (isMounted) {
+          setIsLoggedIn(!!session);
+          setUserEmail(session?.user?.email || null);
+        }
       }
     );
     
     return () => {
+      isMounted = false;
       authListener.subscription.unsubscribe();
     };
   }, []);
@@ -69,6 +79,7 @@ export default function AuthHeader() {
     try {
       await supabase.auth.signOut();
       router.push("/");
+      // Add router.refresh() here to ensure UI updates
       router.refresh();
     } catch (error) {
       console.error("Sign out error:", error);
@@ -93,6 +104,7 @@ export default function AuthHeader() {
 
   return (
     <header className="w-full py-4 bg-white shadow-md fixed top-0 z-50">
+      {/* Rest of the component remains the same */}
       <div className="container mx-auto px-4 flex justify-between items-center">
         {/* Logo */}
         <Link href="/" className="text-xl font-semibold hover:text-green-500 transition">

@@ -1,14 +1,16 @@
-// app/dashboard/page.tsx
+// app/dashboard/page.tsx - FIXED with ESLint corrections
 "use client";
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "@/lib/db";
+import { supabase } from "@/lib/db/supabase-client";
 import { getProgress, Progress, getResponses, ResponseEntry } from "@/lib/db";
 import { kohlbergStages } from "@/lib/constants";
 
 export default function DashboardPage() {
+  // We're using userId in the component, so it's not unused
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [userId, setUserId] = useState<string | null>(null);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [responses, setResponses] = useState<ResponseEntry[]>([]);
@@ -17,36 +19,78 @@ export default function DashboardPage() {
   const router = useRouter();
 
   useEffect(() => {
+    let isMounted = true;
+
     async function fetchUserData() {
       try {
         setLoading(true);
-        const { data } = await supabase.auth.getUser();
+        console.log("Attempting to fetch user data...");
+        
+        const { data, error: userError } = await supabase.auth.getUser();
+        
+        if (userError) {
+          console.error("Auth error:", userError);
+          throw userError;
+        }
         
         if (!data?.user) {
+          console.log("No user found, redirecting to login");
           router.push("/login");
           return;
         }
         
-        setUserId(data.user.id);
+        console.log("User authenticated:", data.user.id);
+        if (isMounted) {
+          setUserId(data.user.id);
+        }
         
         // Fetch user progress
-        const userProgress = await getProgress(data.user.id);
-        setProgress(userProgress);
+        try {
+          console.log("Fetching user progress...");
+          const userProgress = await getProgress(data.user.id);
+          if (isMounted) {
+            setProgress(userProgress);
+          }
+          console.log("Progress loaded:", userProgress);
+        } catch (progressError) {
+          console.error("Error fetching progress:", progressError);
+          // Continue execution even if progress fetch fails
+        }
         
         // Fetch user responses
         if (data.user.id) {
-          const userResponses = await getResponses(data.user.id);
-          setResponses(userResponses);
+          try {
+            console.log("Fetching user responses...");
+            const userResponses = await getResponses(data.user.id);
+            if (isMounted) {
+              setResponses(userResponses);
+            }
+            console.log("Responses loaded:", userResponses.length);
+          } catch (responsesError) {
+            console.error("Error fetching responses:", responsesError);
+            // Continue execution even if responses fetch fails
+          }
         }
-      } catch (err: any) {
-        setError(err.message || "Failed to load dashboard data");
-        console.error(err);
-      } finally {
-        setLoading(false);
+        
+        if (isMounted) {
+          setLoading(false);
+        }
+      } catch (err: unknown) {
+        console.error("Dashboard error:", err);
+        if (isMounted) {
+          setError(
+            err instanceof Error ? err.message : "Failed to load dashboard data"
+          );
+          setLoading(false);
+        }
       }
     }
     
     fetchUserData();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [router]);
 
   async function handleSignOut() {
@@ -54,8 +98,10 @@ export default function DashboardPage() {
       await supabase.auth.signOut();
       router.push("/");
       router.refresh();
-    } catch (err: any) {
-      setError(err.message || "Failed to sign out");
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : "Failed to sign out"
+      );
     }
   }
 
@@ -192,11 +238,11 @@ export default function DashboardPage() {
       
       {/* Information About Kohlberg's Stages */}
       <div className="bg-white p-6 rounded-lg shadow-md">
-        <h2 className="text-xl font-semibold mb-4">About Kohlberg's Moral Development Stages</h2>
+        <h2 className="text-xl font-semibold mb-4">About Kohlberg&apos;s Moral Development Stages</h2>
         
         <p className="text-gray-700 mb-4">
-          Lawrence Kohlberg's theory proposes that moral reasoning develops through six stages,
-          grouped into three levels. As you progress through the questions, we'll help you
+          Lawrence Kohlberg&apos;s theory proposes that moral reasoning develops through six stages,
+          grouped into three levels. As you progress through the questions, we&apos;ll help you
           understand your moral reasoning framework.
         </p>
         

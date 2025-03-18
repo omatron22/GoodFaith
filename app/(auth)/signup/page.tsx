@@ -1,3 +1,4 @@
+// app/(auth)/signup/page.tsx - FIXED
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -18,19 +19,35 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const router = useRouter();
 
   // Check if user is already authenticated
   useEffect(() => {
+    let isMounted = true;
+    
     const checkAuth = async () => {
-      const { data } = await supabase.auth.getUser();
-      if (data?.user) {
-        setIsAuthenticated(true);
-        router.push("/dashboard");
+      try {
+        const { data } = await supabase.auth.getUser();
+        if (isMounted && data?.user) {
+          console.log("User already authenticated, redirecting to dashboard");
+          setIsRedirecting(true);
+          
+          // Small delay before redirect to ensure state updates
+          setTimeout(() => {
+            router.push("/dashboard");
+          }, 100);
+        }
+      } catch (error) {
+        console.error("Auth check error:", error);
       }
     };
+    
     checkAuth();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [router]);
 
   async function handleSignup(e: React.FormEvent) {
@@ -72,7 +89,13 @@ export default function SignupPage() {
         setSuccess(true);
       } else {
         // No confirmation required, redirect to dashboard
-        router.push("/dashboard");
+        console.log("Signup successful, redirecting to dashboard");
+        setIsRedirecting(true);
+        
+        // Small delay before redirect
+        setTimeout(() => {
+          router.push("/dashboard");
+        }, 100);
       }
     } catch (error: unknown) {
       let errorMessage = "An error occurred during signup";
@@ -90,7 +113,7 @@ export default function SignupPage() {
     }
   }
 
-  if (isAuthenticated) {
+  if (isRedirecting) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <div className="w-full max-w-md space-y-8 text-center">
@@ -114,7 +137,7 @@ export default function SignupPage() {
               </svg>
             </div>
           </div>
-          <h2 className="text-2xl font-bold text-green-600">Success! Check your email</h2>
+          <h2 className="text-2xl font-bold text-green-600 mb-2">Success! Check your email</h2>
           <p className="text-gray-600 mb-4">
             We&apos;ve sent a confirmation link to your email. Please check your inbox and confirm your account.
           </p>
