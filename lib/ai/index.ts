@@ -1,5 +1,5 @@
 // lib/ai/index.ts
-import { saveResponse, getUserStage, getNonSupersededAnswers } from "@/lib/db";
+import { saveResponse, getUserStage, getNonSupersededAnswers, getProgress } from "@/lib/db";
 import { kohlbergStages } from "@/lib/constants";
 
 /** Get Ollama environment variables with fallbacks */
@@ -85,7 +85,7 @@ export async function generateNextQuestion(userId: string) {
   const stageInfo = kohlbergStages.find(s => s.stageNumber === stageNumber);
   const stageDescription = stageInfo?.shortDescription || "";
 
-  // LLM prompt to adapt the baseline question
+  // Enhanced LLM prompt to adapt the baseline question
   const adaptationPrompt = `
 SYSTEM:
 You are a moral philosophy AI specializing in Lawrence Kohlberg's stages of moral development.
@@ -102,17 +102,29 @@ ${userHistory || "(No prior statements yet)"}
 
 INSTRUCTION:
 Create a thoughtful, open-ended moral dilemma or question aligned with Stage ${stageNumber} thinking.
-The question should encourage the user to reflect on their moral reasoning process.
-If the user has previous answers, adapt your question to build on themes from their prior responses.
-Keep the question concise (1-2 sentences), thought-provoking, and focused on moral reasoning.
+The question should:
+1. Be appropriately challenging for the user's current moral development stage
+2. Build on themes or principles from their prior responses when possible
+3. Introduce new moral concepts appropriate for Stage ${stageNumber}
+4. Encourage deeper reflection than previous questions
+5. Avoid being too abstract or philosophical for lower stages (1-2)
+6. For higher stages (5-6), explore universal principles and ethical reasoning
 
 <think>
-Consider what moral principles are important at this stage. For Stage 1-2 (Preconventional), focus on consequences and self-interest.
-For Stage 3-4 (Conventional), emphasize social norms and authority. For Stage 5-6 (Postconventional), incorporate universal principles and ethical reasoning.
-Analyze their previous responses for patterns in how they approach moral questions.
+- For Stage 1-2 (Preconventional): Focus on consequences, self-interest, and concrete scenarios
+- For Stage 3-4 (Conventional): Emphasize social norms, relationships, rules, and authority
+- For Stage 5-6 (Postconventional): Explore social contracts, rights, justice, and universal principles
+- Analyze their previous responses for:
+  * Depth of moral reasoning
+  * Consistency of principles
+  * Areas that could benefit from further exploration
+  * Potential blind spots in their moral framework
+- If this is a new stage, introduce foundational concepts for that stage
+- If they're progressing within a stage, increase complexity gradually
 </think>
 
 Return ONLY the adapted question with no extra text or explanation.
+Aim for a question that is clear, concise (1-3 sentences), thought-provoking, and tailored to their demonstrated moral reasoning level.
 `;
 
   // Attempt to adapt the question using the LLM
@@ -214,7 +226,9 @@ CONCLUSION:
     const response = await askLLM(prompt, 0.2); // Lower temperature for more consistent evaluation
     if (!response) return { found: false, details: null };
 
-    const hasContradiction = response.toUpperCase().includes("CONTRADICTION");
+    // FIX: More precise check for the contradiction pattern
+    // Check specifically for the word "CONTRADICTION:" at the beginning of the response
+    const hasContradiction = response.toUpperCase().startsWith("CONTRADICTION:");
     
     if (hasContradiction) {
       // Extract just the explanation part if there's a contradiction
@@ -338,6 +352,10 @@ export async function generateFinalEvaluation(userId: string) {
     // Get all non-superseded answers with their stage numbers
     const previousAnswers = await getNonSupersededAnswers(userId);
     
+    // Get user progress to understand which stages they've completed
+    const progress = await getProgress(userId);
+    const completedStages = progress?.completed_stages || [];
+    
     const userStatements = previousAnswers
       .map((ans, i) => `[Stage ${ans.stage}] Response ${i + 1}: ${ans.text}`)
       .join("\n\n");
@@ -350,6 +368,8 @@ Analyze the user's moral reasoning based on their responses to various moral que
 USER'S RESPONSES:
 ${userStatements || "(No responses recorded)"}
 
+STAGES COMPLETED: ${completedStages.join(", ") || "None"}
+
 INSTRUCTIONS:
 Create a thoughtful, educational analysis of the user's moral reasoning framework.
 Your analysis should:
@@ -359,22 +379,29 @@ Your analysis should:
 3. Note any evolution or consistency in their thinking
 4. Highlight strengths in their moral reasoning
 5. Suggest areas for further reflection (without being judgmental)
+6. Provide personalized insights about their moral framework
 
 <think>
 - Look for evidence of which stage(s) their reasoning most closely resembles
-- Note if different responses show different stages of reasoning
+- Note if different responses show different stages of reasoning (moral pluralism)
 - Consider both the explicit content and implicit values in their answers
+- Look for recurring themes, principles, or concerns in their responses
+- Note if they show more sophisticated reasoning in certain domains vs others
+- Consider their moral "blind spots" or areas they haven't explored
 - Avoid making simplified judgments about which stage is "better"
 - Remember that moral reasoning is complex and may not fit neatly into one stage
 </think>
 
-Format your response in clear sections:
+Format your response in these clear sections:
 1. Summary of Moral Reasoning Style (1-2 paragraphs)
 2. Connection to Kohlberg's Framework (1-2 paragraphs)
-3. Strengths Observed (3-4 bullet points)
-4. Questions for Further Reflection (2-3 questions)
+3. Key Themes & Principles (3-4 bullet points highlighting their core values)
+4. Strengths Observed (3-4 bullet points)
+5. Areas for Growth (2-3 bullet points, phrased constructively)
+6. Questions for Further Reflection (3 thoughtful questions)
 
 Keep your analysis respectful, nuanced, and educational rather than evaluative.
+Emphasize that this is a snapshot of their current thinking, not a permanent assessment.
 `;
 
     const analysis = await askLLM(prompt, 0.7);

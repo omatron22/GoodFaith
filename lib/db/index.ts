@@ -159,6 +159,77 @@ export async function completeStage(userId: string, stageNumber: number): Promis
   });
 }
 
+/**
+ * Determines if a user should progress to the next stage based on:
+ * 1. Number of questions answered at current stage
+ * 2. Question quality and depth of answers
+ * Returns true if user should progress, false otherwise
+ */
+export async function shouldProgressToNextStage(userId: string, currentStage: number): Promise<boolean> {
+  try {
+    // Get all responses for the current stage
+    const stageResponses = await getResponsesByStage(userId, currentStage);
+    
+    // Basic criteria: Need at least 3 answered questions per stage to progress
+    const answeredResponses = stageResponses.filter(r => r.answer && r.answer.trim() !== "");
+    const hasMinimumResponses = answeredResponses.length >= 3;
+    
+    if (!hasMinimumResponses) {
+      return false;
+    }
+    
+    // Additional logic could be added here to analyze depth of responses
+    // For now, we'll use a simple criteria of 3 questions
+    return true;
+  } catch (error) {
+    console.error("Error determining stage progression:", error);
+    return false;
+  }
+}
+
+/**
+ * Enhanced version of completeStage that checks if user should progress
+ * based on their responses, and handles stage completion.
+ */
+export async function evaluateAndProgressStage(userId: string): Promise<Progress> {
+  const progress = await getProgress(userId);
+  if (!progress) {
+    throw new Error("User progress not found");
+  }
+  
+  const currentStage = progress.stage_number;
+  
+  // Don't try to progress if already at final stage
+  if (currentStage >= 6) {
+    // Just update completion status for the final stage
+    const completedStages = [...(progress.completed_stages || [])];
+    if (!completedStages.includes(currentStage)) {
+      completedStages.push(currentStage);
+      return updateProgress(userId, { completed_stages: completedStages });
+    }
+    return progress;
+  }
+  
+  // Check if user should progress to next stage
+  const shouldProgress = await shouldProgressToNextStage(userId, currentStage);
+  
+  if (shouldProgress) {
+    const completedStages = [...(progress.completed_stages || [])];
+    if (!completedStages.includes(currentStage)) {
+      completedStages.push(currentStage);
+    }
+    
+    const nextStage = currentStage + 1;
+    
+    return updateProgress(userId, { 
+      completed_stages: completedStages,
+      stage_number: nextStage
+    });
+  }
+  
+  return progress;
+}
+
 /* ------------------------------------------------------------------
     RESPONSES TABLE HELPERS
    ------------------------------------------------------------------ */

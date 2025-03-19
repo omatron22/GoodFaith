@@ -1,4 +1,4 @@
-// app/chat/page.tsx - FIXED
+// app/chat/page.tsx
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
@@ -8,6 +8,8 @@ import QuestionCard from "@/components/chat/question-card";
 import ChatBox from "@/components/chat/chatbox";
 import { kohlbergStages } from "@/lib/constants";
 import { AuthError } from "@supabase/supabase-js";
+import { Progress } from "@/lib/db"; // Add this import
+
 
 // Define interfaces for error handling
 interface ApiError {
@@ -38,6 +40,7 @@ export default function ChatPage() {
   const [thinking, setThinking] = useState<boolean>(false);
   const [theme, setTheme] = useState<string>("");
   const [showCustomQuestion, setShowCustomQuestion] = useState<boolean>(false);
+  const [progress, setProgress] = useState<Progress | null>(null);
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const router = useRouter();
@@ -72,6 +75,40 @@ export default function ChatPage() {
     fetchUser();
   }, [router]);
 
+  // First, add this function to check for unanswered questions
+  const checkForUnansweredQuestions = useCallback(async () => {
+    if (!userId) return null;
+    try {
+      // Add headers with auth token - fetched directly from Supabase before the request
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      
+      const res = await fetch("/api/responses", {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      
+      if (!res.ok) {
+        console.error(`Responses API error ${res.status}:`, await res.text());
+        throw new Error(`HTTP error ${res.status}`);
+      }
+      
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      // Find the most recent response that has no answer
+      const unansweredResponse = data.responses?.find((r: ResponseData) => 
+        !r.answer || r.answer.trim() === ""
+      );
+      
+      return unansweredResponse;
+    } catch (error) {
+      console.error("Error checking for unanswered questions:", error);
+      return null;
+    }
+  }, [userId]);
+
   const initUserProgress = useCallback(async () => {
     if (!userId) return;
     try {
@@ -98,6 +135,7 @@ export default function ChatPage() {
       // Set current stage from progress data
       if (data.progress && data.progress.stage_number) {
         setCurrentStage(data.progress.stage_number);
+        setProgress(data.progress);
       }
       console.log("Progress loaded successfully");
     } catch (error: unknown) {
@@ -118,32 +156,45 @@ export default function ChatPage() {
       setThinking(true);
       setLoading(true);
       
-      // Add headers with auth token - fetched directly from Supabase before the request
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
+      // Check if there's an unanswered question first
+      const unansweredQuestion = await checkForUnansweredQuestions();
       
-      const res = await fetch("/api/questions", {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({ userId }),
-      });
-      
-      if (!res.ok) {
-        console.error(`Questions API error ${res.status}:`, await res.text());
-        throw new Error(`HTTP error ${res.status}`);
-      }
-      
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      if (unansweredQuestion) {
+        // If there's an unanswered question, use that instead of creating a new one
+        console.log("Found existing unanswered question:", unansweredQuestion.question_text);
+        setCurrentQuestion(unansweredQuestion.question_text || "");
+        setCurrentResponseId(unansweredQuestion.id || null);
+        setAnswer("");
+        setContradiction(null);
+      } else {
+        // No unanswered questions, get a new one
+        // Add headers with auth token - fetched directly from Supabase before the request
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData?.session?.access_token;
+        
+        const res = await fetch("/api/questions", {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({ userId }),
+        });
+        
+        if (!res.ok) {
+          console.error(`Questions API error ${res.status}:`, await res.text());
+          throw new Error(`HTTP error ${res.status}`);
+        }
+        
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
 
-      setCurrentQuestion(data.question || "");
-      setCurrentResponseId(data.responseId || null);
-      setAnswer("");
-      setContradiction(null);
-      console.log("Question loaded successfully:", data.question);
+        setCurrentQuestion(data.question || "");
+        setCurrentResponseId(data.responseId || null);
+        setAnswer("");
+        setContradiction(null);
+        console.log("New question loaded:", data.question);
+      }
     } catch (error: unknown) {
       let errorMessage = "Failed to fetch next question";
       
@@ -157,7 +208,7 @@ export default function ChatPage() {
       setLoading(false);
       setThinking(false);
     }
-  }, [userId]);
+  }, [userId, checkForUnansweredQuestions]);
 
   const fetchCustomQuestion = async () => {
     if (!userId || !theme.trim()) return;
@@ -237,7 +288,7 @@ export default function ChatPage() {
       if (data.error) throw new Error(data.error);
 
       setHistory(
-        data.responses?.map((r: ResponseData) => ({ 
+        data.responses?.filter((r: ResponseData) => r.answer && r.answer.trim() !== "").map((r: ResponseData) => ({ 
           id: r.id,
           question: r.question_text, 
           answer: r.answer || "" 
@@ -293,6 +344,29 @@ export default function ChatPage() {
       
       const data = await res.json();
       if (data.error) throw new Error(data.error);
+
+      // After saving the response, evaluate if user should progress to next stage
+      try {
+        const progressRes = await fetch("/api/progress/evaluate", {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({ userId }),
+        });
+        
+        if (progressRes.ok) {
+          const progressData = await progressRes.json();
+          if (progressData.progress) {
+            setCurrentStage(progressData.progress.stage_number);
+            setProgress(progressData.progress);
+          }
+        }
+      } catch (progressError) {
+        console.error("Error evaluating stage progress:", progressError);
+        // Don't fail the whole submission if this fails
+      }
 
       if (data.contradiction) {
         setContradiction(data.details || "A contradiction has been detected in your answers.");
@@ -574,7 +648,8 @@ export default function ChatPage() {
                 </div>
               )}
 
-              {history.length >= 5 && (
+              {/* Only show the final evaluation button when all stages are completed */}
+              {progress && progress.completed_stages && progress.completed_stages.length >= 6 && (
                 <div className="flex justify-center mt-2">
                   <button
                     onClick={handleGetFinalEvaluation}
@@ -603,12 +678,18 @@ export default function ChatPage() {
           ← Back to Dashboard
         </button>
         
-        <button
-          onClick={handleGetFinalEvaluation}
-          className="text-green-600 hover:text-green-800"
-        >
-          Complete Journey →
-        </button>
+        {progress && progress.completed_stages && progress.completed_stages.length >= 6 ? (
+          <button
+            onClick={handleGetFinalEvaluation}
+            className="text-green-600 hover:text-green-800"
+          >
+            Complete Journey →
+          </button>
+        ) : (
+          <span className="text-gray-400">
+            Complete all stages to finish →
+          </span>
+        )}
       </div>
     </div>
   );
