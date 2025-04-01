@@ -1,8 +1,7 @@
-// app/api/responses/route.ts - FIXED
+// app/api/responses/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getResponses, updateResponse } from "@/lib/db";
 import { checkForContradictions } from "@/lib/ai";
-import { supabase } from "@/lib/db/supabase-client";
 
 /**
  * GET /api/responses
@@ -11,49 +10,21 @@ import { supabase } from "@/lib/db/supabase-client";
  */
 export async function GET(request: NextRequest) {
   try {
-    // Extract bearer token from Authorization header
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
-    
-    // If no token provided in header, try to get from session
-    if (!token) {
-      console.log("No token provided in header, checking session");
-      // Verify authentication using Supabase client
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError || !user) {
-        console.error("Auth error or no user:", authError);
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-      
-      const userId = user.id;
-      const { searchParams } = new URL(request.url);
-      const includeSuperseded = searchParams.get("includeSuperseded") === "true";
-
-      const responses = await getResponses(userId, includeSuperseded);
-      return NextResponse.json({ responses });
-    } else {
-      // Use the token provided in header to get user
-      const { data, error } = await supabase.auth.getUser(token);
-      
-      if (error || !data.user) {
-        console.error("Auth error with provided token:", error);
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-      
-      const userId = data.user.id;
-      const { searchParams } = new URL(request.url);
-      const includeSuperseded = searchParams.get("includeSuperseded") === "true";
-
-      const responses = await getResponses(userId, includeSuperseded);
-      return NextResponse.json({ responses });
+    // Get user ID from the request headers (set by middleware)
+    const userId = request.headers.get('x-user-id');
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    
+    const { searchParams } = new URL(request.url);
+    const includeSuperseded = searchParams.get("includeSuperseded") === "true";
+
+    const responses = await getResponses(userId, includeSuperseded);
+    return NextResponse.json({ responses });
   } catch (error) {
     console.error("Error in GET /api/responses:", error);
-    
-    if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-    return NextResponse.json({ error: "An unknown error occurred" }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 
@@ -64,28 +35,10 @@ export async function GET(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
   try {
-    // Extract bearer token from Authorization header
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
-    
-    let userId: string;
-    
-    // If no token provided in header, try to get from session
-    if (!token) {
-      // Verify authentication using Supabase client
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError || !user) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-      userId = user.id;
-    } else {
-      // Use the token provided in header to get user
-      const { data, error } = await supabase.auth.getUser(token);
-      
-      if (error || !data.user) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-      userId = data.user.id;
+    // Get user ID from the request headers (set by middleware)
+    const userId = request.headers.get('x-user-id');
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     
     const { responseId, answer } = await request.json();
@@ -109,10 +62,7 @@ export async function PATCH(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error in PATCH /api/responses:", error);
-    
-    if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-    return NextResponse.json({ error: "An unknown error occurred" }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
